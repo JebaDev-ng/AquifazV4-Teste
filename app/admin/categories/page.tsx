@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState, type DragEvent } from 'react
 import { motion } from 'framer-motion'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { RefreshCcw, Save, Plus, X, Trash, Package, Edit2, GripVertical } from 'lucide-react'
+import { RefreshCcw, Save, Plus, X, Trash, Package, Edit2, GripVertical, FolderPlus, Settings2 } from 'lucide-react'
 import { z } from 'zod'
 
 import { Button } from '@/components/admin/ui/button'
@@ -45,6 +45,23 @@ const categoryFormSchema = z.object({
 
 type CategoryFormValues = z.infer<typeof categoryFormSchema>
 
+const CATEGORY_TABS = [
+  {
+    id: 'create',
+    label: 'Adicionar',
+    description: 'Cadastre novas categorias',
+    icon: FolderPlus,
+  },
+  {
+    id: 'manage',
+    label: 'Gerenciar',
+    description: 'Edite e reordene',
+    icon: Settings2,
+  },
+] as const
+
+type CategoryTab = typeof CATEGORY_TABS[number]['id']
+
 export default function CategoriesAdminPage() {
   const [categories, setCategories] = useState<ProductCategory[]>([])
   const [loading, setLoading] = useState(true)
@@ -58,6 +75,7 @@ export default function CategoriesAdminPage() {
   const [deleting, setDeleting] = useState(false)
   const [draggedCategoryId, setDraggedCategoryId] = useState<string | null>(null)
   const [reordering, setReordering] = useState(false)
+  const [activeTab, setActiveTab] = useState<CategoryTab>('create')
   const { toast } = useToast()
 
   const form = useForm<CategoryFormValues>({
@@ -392,15 +410,43 @@ useEffect(() => {
 
   return (
     <div className="p-6 space-y-8">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="flex-1 space-y-1">
           <p className="text-sm text-[#6E6E73]">Administração &gt; Conteúdo base</p>
           <h1 className="text-3xl font-normal text-[#1D1D1F]">Categorias da homepage</h1>
-          <p className="text-[#6E6E73] mt-2 max-w-2xl">
+          <p className="text-[#6E6E73] max-w-2xl">
             Gerencie as categorias exibidas na homepage. Crie, edite e organize o conteúdo apresentado aos clientes.
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <div
+            className="inline-flex gap-2 bg-white border border-[#E5E5EA] rounded-2xl p-1.5"
+            role="tablist"
+            aria-label="Seções de gerenciamento de categorias"
+          >
+            {CATEGORY_TABS.map((tab) => {
+              const isActive = activeTab === tab.id
+              const Icon = tab.icon
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all ${
+                    isActive
+                      ? 'bg-[#007AFF] text-white shadow-sm'
+                      : 'text-[#6E6E73] hover:bg-[#F5F5F7]'
+                  }`}
+                  onClick={() => setActiveTab(tab.id)}
+                  title={tab.description}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{tab.label}</span>
+                </button>
+              )
+            })}
+          </div>
           <Button onClick={loadCategories} variant="ghost" icon={<RefreshCcw className="w-4 h-4" />}>
             Atualizar
           </Button>
@@ -413,31 +459,14 @@ useEffect(() => {
         </div>
       )}
 
-      <div className="grid gap-6 md:grid-cols-3">
-        <div className="bg-white border border-[#E5E5EA] rounded-xl p-4">
-          <p className="text-sm text-[#6E6E73]">Total de categorias</p>
-          <p className="text-3xl font-normal text-[#1D1D1F]">
-            {categories.length}
-            {loading && <span className="text-sm text-[#6E6E73] ml-1">Carregando...</span>}
-          </p>
-        </div>
-        <div className="bg-white border border-[#E5E5EA] rounded-xl p-4">
-          <p className="text-sm text-[#6E6E73]">Ativas</p>
-          <p className="text-3xl font-normal text-[#1D1D1F]">{activeCount}</p>
-        </div>
-        <div className="bg-white border border-[#E5E5EA] rounded-xl p-4">
-          <p className="text-sm text-[#6E6E73]">Inativas</p>
-          <p className="text-3xl font-normal text-[#1D1D1F]">{inactiveCount}</p>
-        </div>
-      </div>
-
-      <Form {...form}>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      {activeTab === 'create' && (
+        <Form {...form}>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white border border-[#E5E5EA] rounded-2xl p-6 space-y-6"
+              className="bg-white border border-[#E5E5EA] rounded-2xl p-6 space-y-6 w-full max-w-3xl mx-auto"
             >
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -455,73 +484,76 @@ useEffect(() => {
                 )}
               </div>
 
-              <div className="grid gap-5">
-                <FormField
-                  control={control}
-                  name="name"
-                  render={({ field }) => {
-                    const inputId = 'category-name'
-                    return (
-                      <FormItem>
-                        <FormLabel htmlFor={inputId}>Nome</FormLabel>
-                        <FormControl>
-                          <Input
-                            id={inputId}
-                            required
-                            placeholder="Ex.: Cartões de Visita"
-                            {...field}
-                            error={errors.name?.message}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )
-                  }}
-                />
+              <div className="space-y-6">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <FormField
+                    control={control}
+                    name="name"
+                    render={({ field }) => {
+                      const inputId = 'category-name'
+                      return (
+                        <FormItem>
+                          <FormLabel htmlFor={inputId}>Nome</FormLabel>
+                          <FormControl>
+                            <Input
+                              id={inputId}
+                              required
+                              placeholder="Ex.: Cartões de Visita"
+                              {...field}
+                              error={errors.name?.message}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )
+                    }}
+                  />
 
-                <div className="space-y-2">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-                    <div className="flex-1">
-                      <Input
-                        label="Slug/ID"
-                        placeholder="cartoes"
-                        {...register('slug', {
-                          onChange: () => setSlugManuallyEdited(true),
-                          validate: (value) => {
-                            const trimmed = (value || '').trim()
-                            if (!trimmed) return 'Slug é obrigatório'
-                            const exists = categories.some((cat) => cat.id === trimmed)
-                            if (exists && editingId && trimmed === editingId) {
+                  <div className="space-y-2">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-end">
+                      <div className="flex-1">
+                        <Input
+                          label="Slug/ID"
+                          placeholder="cartoes"
+                          {...register('slug', {
+                            onChange: () => setSlugManuallyEdited(true),
+                            validate: (value) => {
+                              const trimmed = (value || '').trim()
+                              if (!trimmed) return 'Slug é obrigatório'
+                              const exists = categories.some((cat) => cat.id === trimmed)
+                              if (exists && editingId && trimmed === editingId) {
+                                return true
+                              }
+                              if (exists) {
+                                return 'Este slug já está em uso'
+                              }
                               return true
-                            }
-                            if (exists) {
-                              return 'Este slug já está em uso'
-                            }
-                            return true
-                          },
-                        })}
-                        readOnly={!isSlugEditable}
-                        helper={
-                          isSlugEditable
-                            ? 'Use apenas letras minúsculas, números e hífens.'
-                            : 'Slug gerado automaticamente a partir do nome.'
-                        }
-                        error={errors.slug?.message}
-                      />
+                            },
+                          })}
+                          readOnly={!isSlugEditable}
+                          helper={
+                            isSlugEditable
+                              ? 'Use apenas letras minúsculas, números e hífens.'
+                              : 'Slug gerado automaticamente a partir do nome.'
+                          }
+                          error={errors.slug?.message}
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="md:self-end"
+                        icon={<Edit2 className="w-4 h-4" />}
+                        onClick={() => {
+                          setIsSlugEditable((prev) => !prev)
+                          setSlugManuallyEdited(true)
+                        }}
+                      >
+                        {isSlugEditable ? 'Bloquear' : 'Editar slug'}
+                      </Button>
                     </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      icon={<Edit2 className="w-4 h-4" />}
-                      onClick={() => {
-                        setIsSlugEditable((prev) => !prev)
-                        setSlugManuallyEdited(true)
-                      }}
-                    >
-                      {isSlugEditable ? 'Bloquear' : 'Editar slug'}
-                    </Button>
+                    <p className="text-xs text-[#6E6E73]">ID atual: {watchedSlug || '—'}</p>
                   </div>
-                  <p className="text-xs text-[#6E6E73]">ID atual: {watchedSlug || '—'}</p>
                 </div>
 
                 <FormField
@@ -546,7 +578,7 @@ useEffect(() => {
                           <textarea
                             id={inputId}
                             {...field}
-                            rows={3}
+                            rows={4}
                             className="w-full rounded-xl border border-[#D2D2D7] px-4 py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007AFF]"
                           />
                         </FormControl>
@@ -556,65 +588,46 @@ useEffect(() => {
                     )
                   }}
                 />
-              </div>
-            </motion.div>
 
-            <aside className="space-y-6 lg:sticky lg:top-6">
-              <motion.div
-                initial={{ opacity: 0, x: 16 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="bg-white border border-[#E5E5EA] rounded-2xl p-6 space-y-5"
-              >
-                <div className="space-y-1">
-                  <p className="text-xs font-semibold text-[#6E6E73] tracking-[0.2em]">
-                    CONTROLE
-                  </p>
-                  <h3 className="text-lg font-medium text-[#1D1D1F]">Status e conteúdo</h3>
+                <div className="rounded-2xl border border-[#E5E5EA] p-4">
+                  <FormField
+                    control={control}
+                    name="active"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <ToggleSwitch
+                            checked={field.value}
+                            label={field.value ? 'Categoria ativa' : 'Categoria inativa'}
+                            description="Categorias inativas não aparecem na homepage."
+                            onClick={() => field.onChange(!field.value)}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
                 </div>
 
-                <MediaPicker
-                  label="Imagem da categoria"
-                  value={categoryImage}
-                  onChange={(v) => handleCategoryImageChange(v as UploadedImageMeta | null)}
-                  bucket="media"
-                  entity="categories"
-                  entityId={watchedSlug}
-                  helperText="Após definir o slug a imagem será salva em media/categories/<slug>/."
-                />
-
-                <FormField
-                  control={control}
-                  name="active"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormControl>
-                        <ToggleSwitch
-                          checked={field.value}
-                          label={field.value ? 'Categoria ativa' : 'Categoria inativa'}
-                          description="Categorias inativas não aparecem na homepage."
-                          onClick={() => field.onChange(!field.value)}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-
-                <div className="flex flex-col gap-3 pt-2">
+                <div className="pt-2 flex flex-col items-center gap-2">
                   <Button
                     type="submit"
+                    variant="secondary"
+                    className="px-8"
                     loading={isSubmitting}
                     icon={editingId ? <Save className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                   >
                     {editingId ? 'Atualizar categoria' : 'Criar categoria'}
                   </Button>
                   {editingId && (
-                    <Button type="button" variant="secondary" onClick={resetForm}>
+                    <Button type="button" variant="ghost" size="sm" onClick={resetForm}>
                       Criar nova categoria
                     </Button>
                   )}
                 </div>
-              </motion.div>
+              </div>
+            </motion.div>
 
+            <aside className="space-y-6 lg:sticky lg:top-6">
               <CategoryPreviewCard
                 name={watchedName}
                 description={watchedDescription}
@@ -623,12 +636,46 @@ useEffect(() => {
                 active={watchedActive}
               />
 
+              <motion.div
+                initial={{ opacity: 0, x: 16 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="bg-white border border-[#E5E5EA] rounded-2xl p-6"
+              >
+                <MediaPicker
+                  label="Imagem da categoria"
+                  value={categoryImage}
+                  onChange={(v) => handleCategoryImageChange(v as UploadedImageMeta | null)}
+                  bucket="media"
+                  entity="categories"
+                  entityId={watchedSlug}
+                />
+              </motion.div>
+
+              <div className="grid gap-4">
+                <div className="bg-white border border-[#E5E5EA] rounded-xl p-4">
+                  <p className="text-sm text-[#6E6E73]">Total de categorias</p>
+                  <p className="text-3xl font-normal text-[#1D1D1F]">
+                    {categories.length}
+                    {loading && <span className="text-sm text-[#6E6E73] ml-1">Carregando...</span>}
+                  </p>
+                </div>
+                <div className="bg-white border border-[#E5E5EA] rounded-xl p-4">
+                  <p className="text-sm text-[#6E6E73]">Ativas</p>
+                  <p className="text-3xl font-normal text-[#1D1D1F]">{activeCount}</p>
+                </div>
+                <div className="bg-white border border-[#E5E5EA] rounded-xl p-4">
+                  <p className="text-sm text-[#6E6E73]">Inativas</p>
+                  <p className="text-3xl font-normal text-[#1D1D1F]">{inactiveCount}</p>
+                </div>
+              </div>
             </aside>
           </div>
-        </form>
-      </Form>
+          </form>
+        </Form>
+      )}
 
-      <section className="bg-white border border-[#E5E5EA] rounded-2xl p-6 space-y-4">
+      {activeTab === 'manage' && (
+        <section className="bg-white border border-[#E5E5EA] rounded-2xl p-6 space-y-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
             <h3 className="text-lg font-normal text-[#1D1D1F]">Categorias cadastradas</h3>
@@ -740,7 +787,8 @@ useEffect(() => {
             </table>
           </div>
         )}
-      </section>
+        </section>
+      )}
 
       {/* Modal de produtos vinculados */}
       {selectedCategoryForProducts && (

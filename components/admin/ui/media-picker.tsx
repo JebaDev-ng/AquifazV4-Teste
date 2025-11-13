@@ -209,10 +209,6 @@ export default function MediaPicker({
           >
             Novo upload
           </Button>
-          <div className="ml-auto text-xs text-[#6E6E73]">
-            bucket: <span className="font-mono">{bucket}</span> • prefix:{' '}
-            <span className="font-mono">{prefix}</span>
-          </div>
         </div>
 
         {activeTab === 'gallery' ? (
