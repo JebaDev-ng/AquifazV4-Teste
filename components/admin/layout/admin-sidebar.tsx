@@ -74,7 +74,7 @@ const staticNavigation: NavigationItem[] = [
   },
   {
     name: 'Configurações',
-    href: '/admin/settings',
+    href: '/admin/configuracoes',
     icon: Settings,
   },
 ]

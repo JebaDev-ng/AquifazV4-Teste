@@ -13,8 +13,6 @@ interface CategoriesSectionProps {
   categories?: ProductCategory[]
 }
 
-const hexColorRegex = /^#(?:[0-9a-fA-F]{3}){1,2}$/
-
 const isHostedImage = (url?: string | null) => {
   if (!url) return false
   const trimmed = url.trim()
@@ -57,10 +55,6 @@ export function CategoriesSection({ categories }: CategoriesSectionProps) {
           >
             {displayCategories.map((category) => {
               const href = `/produtos?category=${category.id}`
-              const accentColor =
-                category.accent_color && hexColorRegex.test(category.accent_color)
-                  ? category.accent_color
-                  : '#D2D2D7'
               const hasImage = hasValidImage(category.image_url) && isHostedImage(category.image_url)
 
               return (
@@ -75,7 +69,6 @@ export function CategoriesSection({ categories }: CategoriesSectionProps) {
                   >
                     <div
                       className="relative aspect-square rounded-full overflow-hidden bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-border-primary dark:border-[#2C2C2E] mb-2 sm:mb-3 shadow-sm group-hover:shadow-md transition-shadow duration-300"
-                      style={{ borderColor: accentColor }}
                     >
                       {hasImage ? (
                         <Image

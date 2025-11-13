@@ -15,8 +15,6 @@ const imageSchema = z
     'Informe uma URL completa (https://) ou um caminho relativo iniciando com /.'
   )
 
-const hexColorRegex = /^#(?:[0-9a-fA-F]{3}){1,2}$/
-
 const baseCategorySchema = z.object({
   id: z
     .string()
@@ -28,11 +26,6 @@ const baseCategorySchema = z.object({
   description: z.string().trim().max(200).optional(),
   image_url: imageSchema,
   storage_path: z.string().optional(),
-  accent_color: z
-    .string()
-    .trim()
-    .optional()
-    .refine((value) => !value || hexColorRegex.test(value), 'Informe uma cor no formato hex (#RRGGBB).'),
   sort_order: z.number().int().min(0).max(999).optional(),
   active: z.boolean().optional(),
 })
@@ -87,7 +80,6 @@ export async function POST(request: NextRequest) {
       description: parsed.description,
       image_url: parsed.image_url,
       storage_path: parsed.storage_path || null,
-      accent_color: parsed.accent_color || null,
       sort_order: parsed.sort_order ?? 0,
       active: parsed.active ?? true,
       created_at: now,

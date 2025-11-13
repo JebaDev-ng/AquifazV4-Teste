@@ -5,10 +5,14 @@ import { requireAdmin, logActivity } from '@/lib/admin/auth'
 import { createClient } from '@/lib/supabase/server'
 
 const reorderSchema = z.object({
-  order: z
-    .array(z.string().trim().min(1))
-    .min(1, 'Envie ao menos um ID para reordenar')
-    .refine((arr) => new Set(arr).size === arr.length, 'IDs duplicados na ordem enviada'),
+  items: z
+    .array(
+      z.object({
+        id: z.string().trim().min(1),
+        sort_order: z.number().int().min(1),
+      }),
+    )
+    .min(1, 'Envie ao menos um item para reordenar'),
 })
 
 export async function POST(request: NextRequest) {
@@ -16,23 +20,23 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { order } = reorderSchema.parse(body)
+    const { items } = reorderSchema.parse(body)
 
     const supabase = await createClient()
 
-    // Verificar se todos os IDs existem (opcional, mas ajuda a retornar erro cedo)
+    const ids = items.map((item) => item.id)
     const { data: existing, error: fetchError } = await supabase
       .from('product_categories')
       .select('id')
-      .in('id', order)
+      .in('id', ids)
 
     if (fetchError) {
       console.error('Erro ao verificar categorias para reorder:', fetchError)
       return NextResponse.json({ error: 'Falha ao verificar categorias.' }, { status: 500 })
     }
 
-    const existingIds = new Set((existing ?? []).map((c) => c.id as string))
-    const missing = order.filter((id) => !existingIds.has(id))
+    const existingIds = new Set((existing ?? []).map((category) => category.id as string))
+    const missing = ids.filter((id) => !existingIds.has(id))
     if (missing.length > 0) {
       return NextResponse.json(
         { error: `IDs inexistentes: ${missing.join(', ')}` },
@@ -40,33 +44,27 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Aplicar nova ordem (0-based, consistente com validação min 0)
-    // Atualizações em série para simplicidade e clareza; volume é baixo no admin
-    for (let index = 0; index < order.length; index++) {
-      const id = order[index]
+    for (const item of items) {
       const { error: updateError } = await supabase
         .from('product_categories')
-        .update({ sort_order: index, updated_at: new Date().toISOString() })
-        .eq('id', id)
+        .update({
+          sort_order: item.sort_order,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', item.id)
 
       if (updateError) {
         console.error('Erro ao atualizar sort_order:', updateError)
         return NextResponse.json(
-          { error: `Falha ao atualizar ordem para ID ${id}` },
+          { error: `Falha ao atualizar ordem para ID ${item.id}` },
           { status: 500 },
         )
       }
     }
 
-    await logActivity('category_reordered', 'product_category', undefined, undefined, { order })
+    await logActivity('category_reordered', 'product_category', undefined, undefined, { items })
 
-    const { data: updated } = await supabase
-      .from('product_categories')
-      .select('*')
-      .order('sort_order', { ascending: true })
-      .order('name', { ascending: true })
-
-    return NextResponse.json({ reordered: true, order, categories: updated ?? [] })
+    return NextResponse.json({ reordered: true })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

@@ -206,7 +206,6 @@ export interface ProductCategory {
   icon?: string
   image_url?: string
   storage_path?: string
-  accent_color?: string
   active?: boolean
   sort_order?: number
   created_at?: string

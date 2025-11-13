@@ -88,11 +88,10 @@ export default async function ProdutosPage({
   ])
 
   const categoryOptions = [
-    { label: 'Todos', value: undefined, accent_color: '#1D1D1F', image_url: undefined },
+    { label: 'Todos', value: undefined, image_url: undefined },
     ...categories.map((category) => ({
       label: category.name,
       value: category.id,
-      accent_color: category.accent_color,
       image_url: category.image_url,
     })),
   ]
@@ -114,11 +113,6 @@ export default async function ProdutosPage({
         <div className="flex flex-wrap gap-2 mb-6 sm:mb-8 md:mb-12">
           {categoryOptions.map((cat) => {
             const isActive = params.category === cat.value || (!cat.value && !params.category)
-            const accentColor =
-              cat.accent_color && /^#(?:[0-9a-fA-F]{3}){1,2}$/.test(cat.accent_color)
-                ? cat.accent_color
-                : '#2d2736'
-
             return (
               <a
                 key={cat.label}
@@ -128,7 +122,7 @@ export default async function ProdutosPage({
                     ? 'text-white dark:text-[#1D1D1F]'
                     : 'bg-[#F5F5F5] dark:bg-[#1C1C1E] text-[#1D1D1F] dark:text-white hover:bg-[#E5E5EA] dark:hover:bg-[#2C2C2E]'
                 }`}
-                style={isActive ? { backgroundColor: accentColor, borderColor: accentColor } : { borderColor: '#E5E5EA' }}
+                style={isActive ? { backgroundColor: '#2d2736', borderColor: '#2d2736' } : { borderColor: '#E5E5EA' }}
               >
                 <span
                   className="relative inline-flex h-6 w-6 rounded-full overflow-hidden border"

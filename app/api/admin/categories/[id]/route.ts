@@ -15,8 +15,6 @@ const imageSchema = z
     'Informe uma URL completa (https://) ou um caminho relativo iniciando com /.'
   )
 
-const hexColorRegex = /^#(?:[0-9a-fA-F]{3}){1,2}$/
-
 const updateCategorySchema = z
   .object({
     id: z
@@ -30,12 +28,7 @@ const updateCategorySchema = z
     description: z.string().trim().max(200).optional(),
     image_url: imageSchema,
     storage_path: z.string().optional(),
-    accent_color: z
-      .string()
-      .trim()
-      .optional()
-      .refine((value) => !value || hexColorRegex.test(value), 'Informe uma cor no formato hex (#RRGGBB).'),
-  sort_order: z.number().int().min(0).max(999).optional(),
+    sort_order: z.number().int().min(0).max(999).optional(),
     active: z.boolean().optional(),
   })
   .refine((payload) => Object.keys(payload).length > 0, {
@@ -89,7 +82,6 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       description: parsed.description ?? currentCategory.description,
       image_url: parsed.image_url ?? currentCategory.image_url,
       storage_path: parsed.storage_path ?? currentCategory.storage_path,
-      accent_color: parsed.accent_color ?? currentCategory.accent_color,
       sort_order: parsed.sort_order ?? currentCategory.sort_order,
       active: parsed.active ?? currentCategory.active,
       updated_at: new Date().toISOString(),
