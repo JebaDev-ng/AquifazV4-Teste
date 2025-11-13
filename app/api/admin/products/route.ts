@@ -108,9 +108,10 @@ export async function GET(request: NextRequest) {
         pages: Math.ceil((count || 0) / limit)
       }
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erro na API de produtos:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    const message = error instanceof Error ? error.message : 'Erro interno ao listar produtos'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
@@ -178,7 +179,7 @@ export async function POST(request: NextRequest) {
     await logActivity('product_created', 'product', data.id, undefined, data)
 
     return NextResponse.json(data, { status: 201 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       logProductValidationIssues('POST /api/admin/products', error.issues)
       return NextResponse.json(
@@ -188,6 +189,7 @@ export async function POST(request: NextRequest) {
     }
     
     console.error('Erro na criação do produto:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    const message = error instanceof Error ? error.message : 'Erro interno ao criar produto'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

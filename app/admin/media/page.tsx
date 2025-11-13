@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
+import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useDropzone } from 'react-dropzone'
 import { Button } from '@/components/admin/ui/button'
@@ -311,7 +312,7 @@ export default function MediaLibraryPage() {
           {/* Ordenação */}
           <select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
+            onChange={(e) => setSortBy(e.target.value as 'date' | 'name' | 'size')}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
           >
             <option value="date">Data</option>
@@ -388,11 +389,13 @@ export default function MediaLibraryPage() {
                     </div>
 
                     {/* Imagem */}
-                    <div className="aspect-square bg-gray-100 rounded-t-xl overflow-hidden">
-                      <img
+                    <div className="relative aspect-square bg-gray-100 rounded-t-xl overflow-hidden">
+                      <Image
                         src={item.url}
                         alt={item.alt_text || item.original_filename}
-                        className="w-full h-full object-cover"
+                        fill
+                        sizes="(max-width: 768px) 50vw, (max-width: 1280px) 25vw, 12vw"
+                        className="object-cover"
                       />
                     </div>
 
@@ -465,11 +468,15 @@ export default function MediaLibraryPage() {
                           />
                         </td>
                         <td className="px-4 py-3">
-                          <img
-                            src={item.url}
-                            alt={item.original_filename}
-                            className="w-12 h-12 object-cover rounded-lg"
-                          />
+                          <div className="relative h-12 w-12">
+                            <Image
+                              src={item.url}
+                              alt={item.original_filename}
+                              fill
+                              sizes="48px"
+                              className="rounded-lg object-cover"
+                            />
+                          </div>
                         </td>
                         <td className="px-4 py-3">
                           <div>
@@ -589,11 +596,15 @@ export default function MediaLibraryPage() {
           <div className="space-y-6">
             {/* Imagem */}
             <div className="text-center">
-              <img
-                src={selectedImage.url}
-                alt={selectedImage.original_filename}
-                className="max-w-full max-h-96 mx-auto rounded-lg shadow-sm"
-              />
+              <div className="relative mx-auto h-96 w-full max-w-3xl">
+                <Image
+                  src={selectedImage.url}
+                  alt={selectedImage.original_filename}
+                  fill
+                  sizes="(max-width: 768px) 90vw, 60vw"
+                  className="rounded-lg object-contain shadow-sm"
+                />
+              </div>
             </div>
 
             {/* Informações */}
@@ -678,7 +689,7 @@ export default function MediaLibraryPage() {
                       })
                       await fetchMediaItems()
                       setSelectedImage(null)
-                    } catch (error) {
+                    } catch {
                       alert('Erro ao deletar imagem')
                     }
                   }

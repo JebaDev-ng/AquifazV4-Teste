@@ -122,16 +122,17 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           */}
           <div className="relative aspect-square bg-[#F5F5F5] dark:bg-[#1C1C1E] border border-[#D2D2D7] dark:border-[#38383A] rounded-lg overflow-hidden flex items-center justify-center">
             {(product.images && product.images.length > 0) || product.image_url ? (
-              <img
+              <Image
                 src={
-                  // Prioridade: images[1] (1200x1200) > images[0] (600x800) > image_url
                   (product.images && product.images.length > 1 && product.images[1]) ||
-                  (product.images && product.images[0]) || 
-                  product.image_url || 
+                  (product.images && product.images[0]) ||
+                  product.image_url ||
                   ''
                 }
                 alt={product.name}
-                className="w-full h-full object-cover"
+                fill
+                sizes="(max-width: 768px) 100vw, 50vw"
+                className="object-cover"
               />
             ) : (
               <div className="text-center">

@@ -152,6 +152,18 @@ npm run build
 
 ## 🤝 Contribuindo
 
+## 🖼️ Admin: Fluxo de mídia em Categorias
+
+As imagens da aba de Categorias agora usam o componente unificado `MediaPicker`.
+
+- Bucket padrão: `media`
+- Prefixo: `categories/<slug>/`
+- Endpoints usados:
+  - `POST /api/admin/upload` (upload com dedupe)
+  - `GET /api/admin/upload/gallery` (galeria por bucket/prefix)
+- O formulário de Categorias persiste `image_url` e `storage_path`, e opcionalmente consome metadados como `bucket`, `reused` e `checksum`.
+- O mesmo padrão é aplicado em outras seções do admin para manter consistência (Hero/Banners/Products).
+
 Contribuições são bem-vindas! Sinta-se à vontade para abrir issues e pull requests.
 
 ## 📄 Licença

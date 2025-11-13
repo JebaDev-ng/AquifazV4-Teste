@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { 
   Bell, 
@@ -22,11 +22,7 @@ export function AdminHeader() {
   const [darkMode, setDarkMode] = useState(false)
   const router = useRouter()
 
-  useEffect(() => {
-    loadProfile()
-  }, [])
-
-  const loadProfile = async () => {
+  const loadProfile = useCallback(async () => {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     
@@ -39,7 +35,14 @@ export function AdminHeader() {
       
       if (data) setProfile(data)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadProfile()
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [loadProfile])
 
   const handleSignOut = async () => {
     const supabase = createClient()

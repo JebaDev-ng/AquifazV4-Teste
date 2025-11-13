@@ -1,74 +1,109 @@
+
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import Image from 'next/image'
+import { useCallback, useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { RefreshCcw, Save, Plus, X, Trash, Package } from 'lucide-react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { RefreshCcw, Save, Plus, X, Trash, Package, Edit2 } from 'lucide-react'
+import { z } from 'zod'
 
 import { Button } from '@/components/admin/ui/button'
 import { Input } from '@/components/admin/ui/input'
-import SingleImageUpload from '@/components/admin/ui/single-image-upload'
+import { ToggleSwitch } from '@/components/admin/ui/toggle-switch'
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/admin/ui/form'
+import MediaPicker from '@/components/admin/ui/media-picker'
+import { useToast } from '@/components/admin/ui/use-toast'
+import { Modal } from '@/components/admin/ui/modal'
 import CategoryProductsModal from '@/components/admin/categories/category-products-modal'
-import { DEFAULT_PRODUCT_CATEGORIES } from '@/lib/content'
+import { slugifyId } from '@/lib/content'
 import type { ProductCategory } from '@/lib/types'
 import type { UploadedImageMeta } from '@/lib/uploads'
 
-type CategoryFormState = {
-  id: string
-  name: string
-  description: string
-  icon: string
-  image_url: string
-  storage_path: string
-  sort_order: string
-  active: boolean
-}
+const accentColorRegex = /^#(?:[0-9a-fA-F]{3}){1,2}$/
 
-const initialFormState = (): CategoryFormState => ({
-  id: '',
-  name: '',
-  description: '',
-  icon: '',
-  image_url: '',
-  storage_path: '',
-  sort_order: '1',
-  active: true,
+const categoryFormSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(2, 'Nome deve ter pelo menos 2 caracteres'),
+  slug: z
+    .string()
+    .trim()
+    .min(2, 'Slug deve ter pelo menos 2 caracteres')
+    .regex(/^[a-z0-9-]+$/, 'Use apenas letras minúsculas, números e hífens'),
+  description: z
+    .string()
+    .trim()
+    .max(300, 'Descrição pode ter no máximo 300 caracteres')
+    .optional()
+    .or(z.literal('')),
+  accent_color: z
+    .string()
+    .trim()
+    .optional()
+    .or(z.literal(''))
+    .refine((value) => !value || accentColorRegex.test(value), {
+      message: 'Informe uma cor no formato hex (#RRGGBB)',
+    }),
+  sort_order: z.number().min(0, 'Ordem mínima é 0').max(999, 'Ordem máxima é 999'),
+  active: z.boolean(),
+  image_url: z.string().trim().url('Informe uma URL válida').optional().or(z.literal('')),
+  storage_path: z.string().trim().optional().or(z.literal('')),
 })
+
+type CategoryFormValues = z.infer<typeof categoryFormSchema>
 
 export default function CategoriesAdminPage() {
   const [categories, setCategories] = useState<ProductCategory[]>([])
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [syncing, setSyncing] = useState(false)
-  const [form, setForm] = useState<CategoryFormState>(initialFormState())
   const [categoryImage, setCategoryImage] = useState<UploadedImageMeta | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [selectedCategoryForProducts, setSelectedCategoryForProducts] = useState<ProductCategory | null>(null)
+  const [isSlugEditable, setIsSlugEditable] = useState(false)
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
+  const [categoryPendingRemoval, setCategoryPendingRemoval] = useState<ProductCategory | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const { toast } = useToast()
 
-  const missingBaseCategories = useMemo(
-    () =>
-      DEFAULT_PRODUCT_CATEGORIES.filter(
-        (base) => !categories.some((category) => category.id === base.id)
-      ),
-    [categories]
-  )
+  const form = useForm<CategoryFormValues>({
+    resolver: zodResolver(categoryFormSchema),
+    defaultValues: {
+      name: '',
+      slug: '',
+      description: '',
+      accent_color: '',
+      sort_order: 1,
+      active: true,
+      image_url: '',
+      storage_path: '',
+    },
+  })
+  const {
+    control,
+    handleSubmit,
+    register,
+    reset,
+    setValue,
+    watch,
+    formState: { errors, isSubmitting },
+  } = form
 
-  const extraCategories = useMemo(
-    () =>
-      categories.filter(
-        (category) => !DEFAULT_PRODUCT_CATEGORIES.some((base) => base.id === category.id)
-      ),
-    [categories]
-  )
+  const watchedName = watch('name')
+  const watchedSlug = watch('slug')
+  const watchedImageUrl = watch('image_url')
+  const watchedAccentColor = watch('accent_color')
+  const watchedDescription = watch('description')
+  const watchedActive = watch('active')
+  const activeCount = categories.filter((category) => category.active).length
+  const inactiveCount = Math.max(0, categories.length - activeCount)
 
-  useEffect(() => {
-    loadCategories()
-  }, [])
-
-  const loadCategories = async () => {
+  const loadCategories = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/admin/categories?with_defaults=true')
+      const response = await fetch('/api/admin/categories')
       if (response.ok) {
         const payload = await response.json()
         setCategories(payload.categories || [])
@@ -78,41 +113,69 @@ export default function CategoriesAdminPage() {
     } catch (error) {
       console.error(error)
       setErrorMessage('Nao foi possivel carregar as categorias.')
+      toast({
+        variant: 'destructive',
+        title: 'Falha ao carregar',
+        description: 'Nao foi possivel carregar as categorias.',
+      })
     } finally {
       setLoading(false)
     }
-  }
+  }, [toast])
 
-  const handleFormChange = (field: keyof CategoryFormState, value: string | boolean) => {
-    setForm((prev) => ({
-      ...prev,
-      [field]: value,
-    }))
-  }
+  useEffect(() => {
+    loadCategories()
+  }, [loadCategories])
+
+  useEffect(() => {
+    if (!slugManuallyEdited && !editingId) {
+      const autogenerated = slugifyId(watchedName || '')
+      setValue('slug', autogenerated)
+    }
+  }, [watchedName, slugManuallyEdited, editingId, setValue])
+
+  useEffect(() => {
+    if (!watchedImageUrl && categoryImage) {
+      setCategoryImage(null)
+    }
+  }, [watchedImageUrl, categoryImage])
 
   const handleCategoryImageChange = (image: UploadedImageMeta | null) => {
     setCategoryImage(image)
-    handleFormChange('image_url', image?.url || '')
-    handleFormChange('storage_path', image?.storagePath || '')
+    setValue('image_url', image?.url ?? '', { shouldDirty: true })
+    setValue('storage_path', image?.storagePath ?? '', { shouldDirty: true })
   }
 
   const resetForm = () => {
-    setForm(initialFormState())
     setEditingId(null)
     setCategoryImage(null)
+    setIsSlugEditable(false)
+    setSlugManuallyEdited(false)
+    reset({
+      name: '',
+      slug: '',
+      description: '',
+      accent_color: '',
+      sort_order: 1,
+      active: true,
+      image_url: '',
+      storage_path: '',
+    })
   }
 
   const handleEdit = (category: ProductCategory) => {
     setEditingId(category.id)
-    setForm({
-      id: category.id,
+    setIsSlugEditable(false)
+    setSlugManuallyEdited(true)
+    reset({
       name: category.name,
+      slug: category.id,
       description: category.description || '',
-      icon: category.icon || '',
+      accent_color: category.accent_color || '',
+      sort_order: category.sort_order ?? 1,
+      active: category.active ?? true,
       image_url: category.image_url || '',
       storage_path: category.storage_path || '',
-      sort_order: String(category.sort_order ?? 1),
-      active: category.active ?? true,
     })
 
     setCategoryImage(
@@ -122,26 +185,22 @@ export default function CategoriesAdminPage() {
     )
   }
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    setSaving(true)
+  const onSubmit = async (values: CategoryFormValues) => {
     setErrorMessage(null)
 
     try {
       const payload = {
-        id: form.id || undefined,
-        name: form.name,
-        description: form.description || undefined,
-        icon: form.icon || undefined,
-        image_url: categoryImage?.url || form.image_url || undefined,
-        storage_path: categoryImage?.storagePath || form.storage_path || undefined,
-        sort_order: Number(form.sort_order) || 0,
-        active: form.active,
+        id: values.slug,
+        name: values.name,
+        description: values.description?.trim() ? values.description.trim() : undefined,
+        accent_color: values.accent_color?.trim() ? values.accent_color.trim() : undefined,
+        image_url: categoryImage?.url || values.image_url || undefined,
+        storage_path: categoryImage?.storagePath || values.storage_path || undefined,
+        sort_order: values.sort_order,
+        active: values.active,
       }
 
-      const endpoint = editingId
-        ? `/api/admin/categories/${editingId}`
-        : '/api/admin/categories'
+      const endpoint = editingId ? `/api/admin/categories/${editingId}` : '/api/admin/categories'
       const method = editingId ? 'PUT' : 'POST'
 
       const response = await fetch(endpoint, {
@@ -160,19 +219,22 @@ export default function CategoriesAdminPage() {
       resetForm()
       await loadCategories()
 
-      // Feedback de sucesso
-      if (editingId) {
-        alert(`✓ Categoria "${data.category?.name || form.name}" atualizada com sucesso.`)
-      } else {
-        alert(`✓ Categoria "${data.category?.name || form.name}" criada com sucesso.`)
-      }
+      toast({
+        variant: 'success',
+        title: editingId ? 'Categoria atualizada' : 'Categoria criada',
+        description: `Categoria "${data.category?.name || values.name}" salva com sucesso.`,
+      })
     } catch (error) {
       console.error(error)
       setErrorMessage(
         error instanceof Error ? error.message : 'Erro inesperado ao salvar categoria.'
       )
-    } finally {
-      setSaving(false)
+      toast({
+        variant: 'destructive',
+        title: 'Falha ao salvar',
+        description:
+          error instanceof Error ? error.message : 'Erro inesperado ao salvar categoria.',
+      })
     }
   }
 
@@ -189,18 +251,35 @@ export default function CategoriesAdminPage() {
       }
 
       await loadCategories()
+      toast({
+        variant: 'success',
+        title: category.active ? 'Categoria desativada' : 'Categoria ativada',
+        description: `O status de "${category.name}" foi atualizado.`,
+      })
     } catch (error) {
       console.error(error)
-      alert('Nao foi possivel atualizar a categoria.')
+      toast({
+        variant: 'destructive',
+        title: 'Falha ao atualizar',
+        description: 'Nao foi possivel atualizar a categoria.',
+      })
     }
   }
 
-  const handleDelete = async (category: ProductCategory) => {
-    if (!confirm(`Remover a categoria "${category.name}"?`)) {
-      return
-    }
+  const requestDeleteCategory = (category: ProductCategory) => {
+    setCategoryPendingRemoval(category)
+  }
 
-    // Optimistic update: remove imediatamente da lista
+  const handleCancelDelete = () => {
+    if (deleting) return
+    setCategoryPendingRemoval(null)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!categoryPendingRemoval) return
+    const category = categoryPendingRemoval
+    setDeleting(true)
+
     const previousCategories = [...categories]
     setCategories((prev) => prev.filter((cat) => cat.id !== category.id))
 
@@ -214,46 +293,24 @@ export default function CategoriesAdminPage() {
         throw new Error(data.error || 'Erro ao remover categoria')
       }
 
-      // Recarregar para garantir consistência
       await loadCategories()
+      toast({
+        variant: 'success',
+        title: 'Categoria removida',
+        description: `"${category.name}" foi removida.`,
+      })
     } catch (error) {
       console.error(error)
-      // Rollback: restaura lista anterior
       setCategories(previousCategories)
-      alert(
-        error instanceof Error ? error.message : 'Nao foi possivel remover a categoria.'
-      )
-    }
-  }
-
-  const handleSyncDefaults = async () => {
-    setSyncing(true)
-    setErrorMessage(null)
-    try {
-      const response = await fetch('/api/admin/categories/sync', { method: 'POST' })
-      const data = await response.json()
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Erro ao sincronizar categorias base')
-      }
-
-      // Exibir feedback sobre o que foi feito
-      if (data.created && data.created.length > 0) {
-        alert(`✓ ${data.created.length} categoria(s) criada(s): ${data.created.join(', ')}`)
-      } else {
-        alert('✓ Todas as categorias base já existem. Nenhuma alteração necessária.')
-      }
-
-      await loadCategories()
-    } catch (error) {
-      console.error(error)
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : 'Nao foi possivel sincronizar as categorias base.'
-      )
+      toast({
+        variant: 'destructive',
+        title: 'Falha ao remover',
+        description:
+          error instanceof Error ? error.message : 'Nao foi possivel remover a categoria.',
+      })
     } finally {
-      setSyncing(false)
+      setDeleting(false)
+      setCategoryPendingRemoval(null)
     }
   }
 
@@ -261,22 +318,13 @@ export default function CategoriesAdminPage() {
     <div className="p-6 space-y-8">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <p className="text-sm text-[#6E6E73]">Administracao &gt; Conteudo base</p>
+          <p className="text-sm text-[#6E6E73]">Administração &gt; Conteúdo base</p>
           <h1 className="text-3xl font-normal text-[#1D1D1F]">Categorias da homepage</h1>
           <p className="text-[#6E6E73] mt-2 max-w-2xl">
-            Sincronize as categorias exibidas no site com o padrao da versao estavel. Esta tela
-            controla apenas o ambiente local e dinamico.
+            Gerencie as categorias exibidas na homepage. Crie, edite e organize o conteúdo apresentado aos clientes.
           </p>
         </div>
         <div className="flex gap-3">
-          <Button
-            variant="secondary"
-            onClick={handleSyncDefaults}
-            loading={syncing}
-            icon={<RefreshCcw className="w-4 h-4" />}
-          >
-            Sincronizar com base
-          </Button>
           <Button onClick={loadCategories} variant="ghost" icon={<RefreshCcw className="w-4 h-4" />}>
             Atualizar
           </Button>
@@ -291,166 +339,269 @@ export default function CategoriesAdminPage() {
 
       <div className="grid gap-6 md:grid-cols-3">
         <div className="bg-white border border-[#E5E5EA] rounded-xl p-4">
-          <p className="text-sm text-[#6E6E73]">Categorias base</p>
-          <p className="text-3xl font-normal text-[#1D1D1F]">{DEFAULT_PRODUCT_CATEGORIES.length}</p>
-        </div>
-        <div className="bg-white border border-[#E5E5EA] rounded-xl p-4">
-          <p className="text-sm text-[#6E6E73]">No painel</p>
+          <p className="text-sm text-[#6E6E73]">Total de categorias</p>
           <p className="text-3xl font-normal text-[#1D1D1F]">
             {categories.length}
             {loading && <span className="text-sm text-[#6E6E73] ml-1">Carregando...</span>}
           </p>
         </div>
         <div className="bg-white border border-[#E5E5EA] rounded-xl p-4">
-          <p className="text-sm text-[#6E6E73]">Pendentes</p>
-          <p className="text-3xl font-normal text-[#1D1D1F]">{missingBaseCategories.length}</p>
+          <p className="text-sm text-[#6E6E73]">Ativas</p>
+          <p className="text-3xl font-normal text-[#1D1D1F]">{activeCount}</p>
+        </div>
+        <div className="bg-white border border-[#E5E5EA] rounded-xl p-4">
+          <p className="text-sm text-[#6E6E73]">Inativas</p>
+          <p className="text-3xl font-normal text-[#1D1D1F]">{inactiveCount}</p>
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <motion.form
-          onSubmit={handleSubmit}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white border border-[#E5E5EA] rounded-2xl p-6 space-y-4"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-[#6E6E73]">
-                {editingId ? 'Editar categoria' : 'Adicionar nova categoria'}
-              </p>
-              <h2 className="text-xl font-normal text-[#1D1D1F]">
-                {editingId ? `Atualizando ${form.name}` : 'Nova categoria'}
-              </h2>
-            </div>
-            {editingId && (
-              <Button type="button" variant="ghost" icon={<X className="w-4 h-4" />} onClick={resetForm}>
-                Cancelar
-              </Button>
-            )}
-          </div>
-
-          <Input
-            label="Nome"
-            value={form.name}
-            onChange={(event) => handleFormChange('name', event.target.value)}
-            required
-          />
-          <Input
-            label="Slug/ID"
-            value={form.id}
-            onChange={(event) => handleFormChange('id', event.target.value)}
-            helper="Use apenas letras minusculas, numeros e hifens."
-            required={!editingId}
-            readOnly={!!editingId}
-          />
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input
-              label="Icone (opcional)"
-              value={form.icon}
-              onChange={(event) => handleFormChange('icon', event.target.value)}
-            />
-            <Input
-              label="Ordem"
-              type="number"
-              value={form.sort_order}
-              onChange={(event) => handleFormChange('sort_order', event.target.value)}
-            />
-          </div>
-
-          <SingleImageUpload
-            label="Imagem da categoria"
-            value={categoryImage}
-            onChange={handleCategoryImageChange}
-            bucket="categories"
-            entity="categories"
-            entityId={form.id}
-            helperText="Após definir o ID da categoria, envie uma imagem quadrada (mín. 600px)."
-          />
-
-          <div className="space-y-2">
-            <label className="text-sm text-[#1D1D1F]">Descricao</label>
-            <textarea
-              value={form.description}
-              onChange={(event) => handleFormChange('description', event.target.value)}
-              className="w-full rounded-xl border border-[#D2D2D7] px-4 py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007AFF]"
-              rows={3}
-            />
-          </div>
-
-          <label className="flex items-center gap-2 text-sm text-[#1D1D1F]">
-            <input
-              type="checkbox"
-              checked={form.active}
-              onChange={(event) => handleFormChange('active', event.target.checked)}
-              className="rounded border-[#D2D2D7] text-[#007AFF] focus:ring-[#007AFF]"
-            />
-            Categoria ativa
-          </label>
-
-          <div className="flex gap-3 pt-2">
-            <Button
-              type="submit"
-              loading={saving}
-              icon={editingId ? <Save className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-              className="flex-1"
+      <Form {...form}>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white border border-[#E5E5EA] rounded-2xl p-6 space-y-6"
             >
-              {editingId ? 'Atualizar categoria' : 'Criar categoria'}
-            </Button>
-          </div>
-        </motion.form>
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm text-[#6E6E73]">
+                    {editingId ? 'Editar categoria' : 'Adicionar nova categoria'}
+                  </p>
+                  <h2 className="text-2xl font-normal text-[#1D1D1F]">
+                    {editingId ? `Atualizando ${watchedName || editingId}` : 'Nova categoria'}
+                  </h2>
+                </div>
+                {editingId && (
+                  <Button type="button" variant="ghost" icon={<X className="w-4 h-4" />} onClick={resetForm}>
+                    Cancelar
+                  </Button>
+                )}
+              </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white border border-[#E5E5EA] rounded-2xl p-6 space-y-4"
-        >
-          <h3 className="text-lg font-normal text-[#1D1D1F]">Mapa de referencia</h3>
-          <p className="text-sm text-[#6E6E73] mb-4">
-            Estas sao as categorias oficiais da homepage base. Use-as como referencia para manter a estrutura.
-          </p>
-          <ul className="space-y-3">
-            {DEFAULT_PRODUCT_CATEGORIES.map((category) => {
-              const isMissing = missingBaseCategories.some((item) => item.id === category.id)
-              return (
-                <li
-                  key={category.id}
-                  className="flex items-center justify-between rounded-xl border border-[#F2F2F7] px-4 py-3"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-[#1D1D1F]">{category.name}</p>
-                    <p className="text-xs text-[#6E6E73]">{category.id}</p>
+              <div className="grid gap-5">
+                <FormField
+                  control={control}
+                  name="name"
+                  render={({ field }) => {
+                    const inputId = 'category-name'
+                    return (
+                      <FormItem>
+                        <FormLabel htmlFor={inputId}>Nome</FormLabel>
+                        <FormControl>
+                          <Input
+                            id={inputId}
+                            required
+                            placeholder="Ex.: Cartões de Visita"
+                            {...field}
+                            error={errors.name?.message}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )
+                  }}
+                />
+
+                <div className="space-y-2">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                    <div className="flex-1">
+                      <Input
+                        label="Slug/ID"
+                        placeholder="cartoes"
+                        {...register('slug', {
+                          onChange: () => setSlugManuallyEdited(true),
+                          validate: (value) => {
+                            const trimmed = (value || '').trim()
+                            if (!trimmed) return 'Slug é obrigatório'
+                            const exists = categories.some((cat) => cat.id === trimmed)
+                            if (exists && editingId && trimmed === editingId) {
+                              return true
+                            }
+                            if (exists) {
+                              return 'Este slug já está em uso'
+                            }
+                            return true
+                          },
+                        })}
+                        readOnly={!isSlugEditable}
+                        helper={
+                          isSlugEditable
+                            ? 'Use apenas letras minúsculas, números e hífens.'
+                            : 'Slug gerado automaticamente a partir do nome.'
+                        }
+                        error={errors.slug?.message}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      icon={<Edit2 className="w-4 h-4" />}
+                      onClick={() => {
+                        setIsSlugEditable((prev) => !prev)
+                        setSlugManuallyEdited(true)
+                      }}
+                    >
+                      {isSlugEditable ? 'Bloquear' : 'Editar slug'}
+                    </Button>
                   </div>
-                  <span
-                    className={`text-xs font-medium ${
-                      isMissing ? 'text-red-600' : 'text-green-600'
-                    }`}
+                  <p className="text-xs text-[#6E6E73]">ID atual: {watchedSlug || '—'}</p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <FormField
+                    control={control}
+                    name="sort_order"
+                    render={({ field }) => {
+                      const inputId = 'category-order'
+                      return (
+                        <FormItem>
+                          <FormLabel htmlFor={inputId}>Ordem</FormLabel>
+                          <FormControl>
+                            <Input
+                              id={inputId}
+                              type="number"
+                              min={0}
+                              max={999}
+                              value={field.value}
+                              onChange={(event) => field.onChange(Number(event.target.value))}
+                              error={errors.sort_order?.message}
+                            />
+                          </FormControl>
+                          <FormDescription>Define a posição em que a categoria aparece.</FormDescription>
+                        </FormItem>
+                      )
+                    }}
+                  />
+                </div>
+
+                <FormField
+                  control={control}
+                  name="accent_color"
+                  render={({ field }) => {
+                    const inputId = 'category-accent'
+                    return (
+                      <FormItem>
+                        <FormLabel htmlFor={inputId}>Cor de destaque</FormLabel>
+                        <FormControl>
+                          <Input
+                            id={inputId}
+                            placeholder="#007AFF"
+                            {...field}
+                            error={errors.accent_color?.message}
+                          />
+                        </FormControl>
+                        <FormDescription>Opcional. Use formato #RRGGBB.</FormDescription>
+                      </FormItem>
+                    )
+                  }}
+                />
+
+                <FormField
+                  control={control}
+                  name="description"
+                  render={({ field }) => {
+                    const inputId = 'category-description'
+                    return (
+                      <FormItem>
+                        <FormLabel htmlFor={inputId}>Descrição</FormLabel>
+                        <FormControl>
+                          <textarea
+                            id={inputId}
+                            {...field}
+                            rows={3}
+                            className="w-full rounded-xl border border-[#D2D2D7] px-4 py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007AFF]"
+                          />
+                        </FormControl>
+                        <FormDescription>Resumo curto exibido na homepage.</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )
+                  }}
+                />
+              </div>
+            </motion.div>
+
+            <aside className="space-y-6 lg:sticky lg:top-6">
+              <motion.div
+                initial={{ opacity: 0, x: 16 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="bg-white border border-[#E5E5EA] rounded-2xl p-6 space-y-5"
+              >
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-[#6E6E73] tracking-[0.2em]">
+                    CONTROLE
+                  </p>
+                  <h3 className="text-lg font-medium text-[#1D1D1F]">Status e conteúdo</h3>
+                </div>
+
+                <MediaPicker
+                  label="Imagem da categoria"
+                  value={categoryImage}
+                  onChange={(v) => handleCategoryImageChange(v as UploadedImageMeta | null)}
+                  bucket="media"
+                  entity="categories"
+                  entityId={watchedSlug}
+                  helperText="Após definir o slug a imagem será salva em media/categories/<slug>/."
+                />
+
+                <FormField
+                  control={control}
+                  name="active"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <ToggleSwitch
+                          checked={field.value}
+                          label={field.value ? 'Categoria ativa' : 'Categoria inativa'}
+                          description="Categorias inativas não aparecem na homepage."
+                          onClick={() => field.onChange(!field.value)}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <div className="flex flex-col gap-3 pt-2">
+                  <Button
+                    type="submit"
+                    loading={isSubmitting}
+                    icon={editingId ? <Save className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                   >
-                    {isMissing ? 'Pendente' : 'Sincronizado'}
-                  </span>
-                </li>
-              )
-            })}
-          </ul>
-        </motion.div>
-      </div>
+                    {editingId ? 'Atualizar categoria' : 'Criar categoria'}
+                  </Button>
+                  {editingId && (
+                    <Button type="button" variant="secondary" onClick={resetForm}>
+                      Criar nova categoria
+                    </Button>
+                  )}
+                </div>
+              </motion.div>
+
+              <CategoryPreviewCard
+                name={watchedName}
+                description={watchedDescription}
+                accentColor={watchedAccentColor}
+                imageUrl={categoryImage?.url || watchedImageUrl}
+                slug={watchedSlug}
+                active={watchedActive}
+              />
+
+            </aside>
+          </div>
+        </form>
+      </Form>
 
       <section className="bg-white border border-[#E5E5EA] rounded-2xl p-6 space-y-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
             <h3 className="text-lg font-normal text-[#1D1D1F]">Categorias cadastradas</h3>
             <p className="text-sm text-[#6E6E73]">
-              {extraCategories.length > 0
-                ? 'Existem categorias fora do padrao base.'
-                : 'Todas as categorias seguem o padrao oficial.'}
+              {categories.length === 0
+                ? 'Nenhuma categoria criada ainda.'
+                : `Você tem ${activeCount} categoria(s) ativa(s) visíveis na homepage.`}
             </p>
           </div>
-          {missingBaseCategories.length > 0 && (
-            <span className="text-xs font-medium text-red-600">
-              {missingBaseCategories.length} categoria(s) pendente(s)
-            </span>
-          )}
         </div>
 
         {loading ? (
@@ -514,7 +665,7 @@ export default function CategoriesAdminPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDelete(category)}
+                          onClick={() => requestDeleteCategory(category)}
                           icon={<Trash className="w-4 h-4" />}
                         >
                           Remover
@@ -542,7 +693,117 @@ export default function CategoriesAdminPage() {
           }}
         />
       )}
+
+      <Modal
+        isOpen={Boolean(categoryPendingRemoval)}
+        onClose={handleCancelDelete}
+        title="Remover categoria"
+        description={
+          categoryPendingRemoval
+            ? `Tem certeza de que deseja remover "${categoryPendingRemoval.name}"?`
+            : undefined
+        }
+        size="sm"
+      >
+        <p className="text-sm text-[#6E6E73]">
+          Esta ação é permanente e remove a categoria da homepage. Os produtos associados não serão deletados.
+        </p>
+
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+          <Button variant="ghost" onClick={handleCancelDelete} disabled={deleting}>
+            Cancelar
+          </Button>
+          <Button
+            variant="destructive"
+            icon={<Trash className="w-4 h-4" />}
+            onClick={handleConfirmDelete}
+            loading={deleting}
+          >
+            Remover categoria
+          </Button>
+        </div>
+      </Modal>
     </div>
+  )
+}
+
+interface CategoryPreviewProps {
+  name?: string
+  description?: string
+  accentColor?: string
+  imageUrl?: string
+  slug?: string
+  active?: boolean
+}
+
+function CategoryPreviewCard({
+  name,
+  description,
+  accentColor,
+  imageUrl,
+  slug,
+  active,
+}: CategoryPreviewProps) {
+  const validAccent =
+    accentColor && accentColorRegex.test(accentColor) ? accentColor : '#D2D2D7'
+  const displayName = name?.trim() || 'Nome da categoria'
+  const displayDescription = description?.trim() || 'Descrição breve da categoria'
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: 16 }}
+      animate={{ opacity: 1, x: 0 }}
+      className="bg-white border border-[#E5E5EA] rounded-2xl p-6 space-y-4"
+    >
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs font-semibold text-[#6E6E73] tracking-[0.2em]">PREVIEW</p>
+          <h3 className="text-lg font-medium text-[#1D1D1F]">Visual na homepage</h3>
+          <p className="text-xs text-[#6E6E73]">Pré-visualização fiel do card exibido na vitrine.</p>
+        </div>
+        <span
+          className={`text-xs font-medium px-3 py-1 rounded-full ${
+            active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'
+          }`}
+        >
+          {active ? 'Ativa na homepage' : 'Inativa'}
+        </span>
+      </div>
+
+      <div className="flex flex-col items-center text-center gap-4">
+        <div
+          className="relative aspect-square w-36 rounded-full border bg-[#F5F5F7] dark:bg-black shadow-sm flex items-center justify-center overflow-hidden"
+          style={{ borderColor: validAccent }}
+        >
+          {imageUrl ? (
+            <Image
+              src={imageUrl}
+              alt={displayName}
+              fill
+              sizes="144px"
+              className="object-cover"
+            />
+          ) : (
+            <div className="absolute inset-0 flex flex-col items-center justify-center p-3 text-center">
+              <p className="text-[11px] font-semibold text-[#6E6E73]">300 x 300</p>
+              <p className="text-[10px] text-[#86868B] mt-1">pixels</p>
+            </div>
+          )}
+          <span
+            className="absolute inset-0 rounded-full border-4 pointer-events-none"
+            style={{ borderColor: validAccent }}
+          />
+        </div>
+
+        <div>
+          <p className="text-[10px] uppercase tracking-widest text-[#6E6E73] mb-1">
+            /produtos?category={slug || 'slug'}
+          </p>
+          <h4 className="text-base font-medium text-[#1D1D1F] mb-0.5">{displayName}</h4>
+          <p className="text-xs text-[#6E6E73]">{displayDescription}</p>
+        </div>
+      </div>
+    </motion.div>
   )
 }
 

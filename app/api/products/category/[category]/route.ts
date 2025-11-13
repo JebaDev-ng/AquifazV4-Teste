@@ -8,7 +8,7 @@ export async function GET(
     const { category } = await params
     
     // Por enquanto retorna dados mockados
-    const products: any[] = []
+    const products: unknown[] = []
 
     return NextResponse.json({ 
       products,
@@ -16,7 +16,7 @@ export async function GET(
       total: products.length 
     })
 
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: 'Erro ao carregar produtos da categoria' },
       { status: 500 }

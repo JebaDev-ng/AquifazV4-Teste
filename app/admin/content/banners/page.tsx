@@ -1,6 +1,7 @@
 'use client'
 
 import clsx from 'clsx'
+import Image from 'next/image'
 import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/admin/ui/button'
@@ -199,10 +200,13 @@ export default function BannerContentPage() {
                   <div className={previewWrapperClasses}>
                     <div className={previewContainerClasses}>
                       {previewUrl ? (
-                        <img
+                        <Image
+                          fill
                           src={previewUrl}
                           alt={bannerContent.title || 'Prévia do banner'}
-                          className="h-full w-full object-cover"
+                          className="object-cover"
+                          sizes="(max-width: 1024px) 100vw, 600px"
+                          priority={false}
                         />
                       ) : (
                         <div className="flex h-full w-full flex-col items-center justify-center text-center p-6">

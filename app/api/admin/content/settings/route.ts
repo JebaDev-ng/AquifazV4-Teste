@@ -48,7 +48,6 @@ export async function GET() {
 
     return NextResponse.json(settings)
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Erro interno ao carregar as configurações'
     console.error('Erro na API de configurações da homepage:', error)
     const fallback = await readLocalHomepageSettings()
     return NextResponse.json(fallback, { status: 200 })

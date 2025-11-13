@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
+import { Package, AlertCircle } from 'lucide-react'
 import ProductForm from '@/components/admin/products/product-form'
 import { Product } from '@/lib/types'
 
@@ -12,11 +13,8 @@ export default function EditProductPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchProduct()
-  }, [productId])
-
-  const fetchProduct = async () => {
+  const fetchProduct = useCallback(async () => {
+    setLoading(true)
     try {
       const response = await fetch(`/api/admin/products/${productId}`)
       
@@ -31,7 +29,11 @@ export default function EditProductPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [productId])
+
+  useEffect(() => {
+    fetchProduct()
+  }, [fetchProduct])
 
   if (loading) {
     return (
@@ -48,8 +50,8 @@ export default function EditProductPage() {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center text-2xl">
-            ❌
+          <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
+            <AlertCircle className="w-8 h-8 text-red-600" />
           </div>
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Erro</h2>
           <p className="text-gray-600 mb-4">{error}</p>
@@ -68,8 +70,8 @@ export default function EditProductPage() {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center text-2xl">
-            📦
+          <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+            <Package className="w-8 h-8 text-gray-600" />
           </div>
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Produto não encontrado</h2>
           <p className="text-gray-600 mb-4">O produto solicitado não existe ou foi removido.</p>

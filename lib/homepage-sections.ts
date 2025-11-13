@@ -3,6 +3,50 @@ import { mockProducts } from './mock-data'
 import { hasSupabaseConfig } from './supabase/env'
 import { createServiceClient } from './supabase/service'
 
+type RawSectionItem = {
+  id: string
+  section_id: string
+  product_id: string
+  sort_order: number | null
+  metadata: Record<string, unknown> | null
+  created_at?: string | null
+  updated_at?: string | null
+  updated_by?: string | null
+  product?: {
+    id: string
+    name: string
+    slug: string
+    description?: string | null
+    category?: string | null
+    price?: number | null
+    original_price?: number | null
+    discount_percent?: number | null
+    unit?: string | null
+    image_url?: string | null
+    images?: string[] | null
+    storage_path?: string | null
+  } | null
+}
+
+type RawSectionRecord = {
+  id: string
+  title: string
+  subtitle: string | null
+  layout_type: HomepageSectionWithItems['layout_type']
+  bg_color: HomepageSectionWithItems['bg_color']
+  limit: number | null
+  view_all_label: string
+  view_all_href: string
+  category_id: string | null
+  sort_order: number | null
+  is_active: boolean | null
+  config: Record<string, unknown> | null
+  created_at?: string | null
+  updated_at?: string | null
+  updated_by?: string | null
+  items?: RawSectionItem[] | null
+}
+
 export interface HomepageRenderableSection {
   id: string
   layout: 'featured' | 'grid'
@@ -102,21 +146,24 @@ function mapSectionToRenderable(section: HomepageSectionWithItems): HomepageRend
   }
 }
 
-function mapSectionRecord(row: any): HomepageSectionWithItems {
-  const items = Array.isArray(row?.items) ? row.items.map(mapSectionItemRecord) : []
+function mapSectionRecord(row: RawSectionRecord): HomepageSectionWithItems {
+  const rawItems = Array.isArray(row?.items) ? row.items : []
+  const items = rawItems
+    .map((item) => (item ? mapSectionItemRecord(item) : null))
+    .filter((item): item is HomepageSectionItem => Boolean(item))
   return {
     id: row.id,
     title: row.title,
     subtitle: row.subtitle ?? null,
-    layout_type: row.layout_type || 'grid',
-    bg_color: row.bg_color || 'white',
-    limit: HOMEPAGE_VISIBLE_PRODUCT_COUNT,
+  layout_type: row.layout_type || 'grid',
+  bg_color: row.bg_color || 'white',
+  limit: row.limit ?? HOMEPAGE_VISIBLE_PRODUCT_COUNT,
     view_all_label: row.view_all_label || 'Ver todos',
     view_all_href: row.view_all_href || '/produtos',
     category_id: row.category_id ?? null,
     sort_order: row.sort_order ?? 0,
     is_active: row.is_active ?? true,
-    config: row.config ?? {},
+  config: row.config ?? {},
     created_at: row.created_at ?? undefined,
     updated_at: row.updated_at ?? undefined,
     updated_by: row.updated_by ?? undefined,
@@ -124,7 +171,7 @@ function mapSectionRecord(row: any): HomepageSectionWithItems {
   }
 }
 
-function mapSectionItemRecord(row: any): HomepageSectionItem {
+function mapSectionItemRecord(row: NonNullable<RawSectionItem>): HomepageSectionItem {
   return {
     id: row.id,
     section_id: row.section_id,
@@ -139,15 +186,15 @@ function mapSectionItemRecord(row: any): HomepageSectionItem {
           id: row.product.id,
           name: row.product.name,
           slug: row.product.slug,
-          description: row.product.description,
-          category: row.product.category,
-          price: row.product.price,
-          original_price: row.product.original_price,
-          discount_percent: row.product.discount_percent,
-          unit: row.product.unit,
-          image_url: row.product.image_url,
-          images: row.product.images,
-          storage_path: row.product.storage_path,
+          description: row.product.description ?? undefined,
+          category: row.product.category ?? undefined,
+          price: Number(row.product.price ?? 0),
+          original_price: row.product.original_price ?? undefined,
+          discount_percent: row.product.discount_percent ?? undefined,
+          unit: row.product.unit || 'unidade',
+          image_url: row.product.image_url ?? undefined,
+          images: row.product.images ?? undefined,
+          storage_path: row.product.storage_path ?? undefined,
         }
       : undefined,
   }
@@ -285,7 +332,9 @@ export async function fetchHomepageSections(
       throw error
     }
 
-    return (data ?? [])
+    const sections = (data ?? []) as RawSectionRecord[]
+
+    return sections
       .map(mapSectionRecord)
       .map(mapSectionToRenderable)
       .filter((section): section is HomepageRenderableSection => Boolean(section))

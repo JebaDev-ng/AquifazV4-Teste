@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server'
-import { motion } from 'framer-motion'
 import { 
   Package, 
   Eye, 
@@ -62,26 +61,24 @@ export async function DashboardStats() {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      {stats.map((stat, index) => (
-        <StatCard key={stat.name} stat={stat} index={index} />
+      {stats.map((stat) => (
+        <StatCard key={stat.name} stat={stat} />
       ))}
     </div>
   )
 }
 
 function StatCard({ 
-  stat, 
-  index 
+  stat 
 }: { 
   stat: {
     name: string
     value: number
-    icon: any
+    icon: React.ComponentType<{ className?: string }>
     change: string
     changeType: 'positive' | 'negative'
     description: string
   }
-  index: number 
 }) {
   const Icon = stat.icon
 

@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 import { requireAdmin, requireEditor, logActivity } from '@/lib/admin/auth'
 import { createClient } from '@/lib/supabase/server'
-import { DEFAULT_PRODUCT_CATEGORIES, slugifyId } from '@/lib/content'
+import { slugifyId } from '@/lib/content'
 
 const imageSchema = z
   .string()
@@ -14,6 +14,8 @@ const imageSchema = z
     (value) => !value || value.startsWith('/') || /^https?:\/\//.test(value),
     'Informe uma URL completa (https://) ou um caminho relativo iniciando com /.'
   )
+
+const hexColorRegex = /^#(?:[0-9a-fA-F]{3}){1,2}$/
 
 const updateCategorySchema = z
   .object({
@@ -26,10 +28,14 @@ const updateCategorySchema = z
       .optional(),
     name: z.string().trim().min(2).max(80).optional(),
     description: z.string().trim().max(200).optional(),
-    icon: z.string().trim().max(80).optional(),
     image_url: imageSchema,
     storage_path: z.string().optional(),
-    sort_order: z.number().int().min(0).max(100).optional(),
+    accent_color: z
+      .string()
+      .trim()
+      .optional()
+      .refine((value) => !value || hexColorRegex.test(value), 'Informe uma cor no formato hex (#RRGGBB).'),
+  sort_order: z.number().int().min(0).max(999).optional(),
     active: z.boolean().optional(),
   })
   .refine((payload) => Object.keys(payload).length > 0, {
@@ -67,57 +73,23 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     const { id: categoryId } = await context.params
 
     const supabase = await createClient()
-    let { data: currentCategory } = await supabase
+    const { data: currentCategory } = await supabase
       .from('product_categories')
       .select('*')
       .eq('id', categoryId)
       .maybeSingle()
 
     if (!currentCategory) {
-      const baseCategory = DEFAULT_PRODUCT_CATEGORIES.find((category) => category.id === categoryId)
-
-      if (!baseCategory) {
-        return NextResponse.json({ error: 'Categoria não encontrada' }, { status: 404 })
-      }
-
-      const now = new Date().toISOString()
-      const seedPayload = {
-        id: baseCategory.id,
-        name: baseCategory.name,
-        description: baseCategory.description,
-        icon: baseCategory.icon,
-        image_url: baseCategory.image_url,
-        storage_path: baseCategory.storage_path || null,
-        sort_order: baseCategory.sort_order ?? 0,
-        active: baseCategory.active ?? true,
-        created_at: now,
-        updated_at: now,
-      }
-
-      const { data: seeded, error: seedError } = await supabase
-        .from('product_categories')
-        .insert(seedPayload)
-        .select()
-        .single()
-
-      if (seedError) {
-        console.error('Erro ao sincronizar categoria base:', seedError)
-        return NextResponse.json(
-          { error: 'Não foi possível sincronizar a categoria padrão.' },
-          { status: 500 }
-        )
-      }
-
-      currentCategory = seeded
+      return NextResponse.json({ error: 'Categoria não encontrada' }, { status: 404 })
     }
 
     const nextId = parsed.id ? slugifyId(parsed.id) : categoryId
     const payload = {
       name: parsed.name ?? currentCategory.name,
       description: parsed.description ?? currentCategory.description,
-      icon: parsed.icon ?? currentCategory.icon,
       image_url: parsed.image_url ?? currentCategory.image_url,
       storage_path: parsed.storage_path ?? currentCategory.storage_path,
+      accent_color: parsed.accent_color ?? currentCategory.accent_color,
       sort_order: parsed.sort_order ?? currentCategory.sort_order,
       active: parsed.active ?? currentCategory.active,
       updated_at: new Date().toISOString(),

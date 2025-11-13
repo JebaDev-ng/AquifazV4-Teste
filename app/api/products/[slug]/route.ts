@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
-    const { slug } = await params
+    await params
     
     // Por enquanto retorna dados mockados
     const product = null
@@ -19,7 +19,7 @@ export async function GET(
 
     return NextResponse.json({ product })
 
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: 'Erro ao carregar produto' },
       { status: 500 }

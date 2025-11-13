@@ -44,7 +44,6 @@ export async function POST() {
     id: category.id,
     name: category.name,
     description: category.description,
-    icon: category.icon,
     image_url: category.image_url,
     active: category.active ?? true,
     sort_order: category.sort_order ?? DEFAULT_PRODUCT_CATEGORIES.length + index + 1,
@@ -52,7 +51,7 @@ export async function POST() {
     updated_at: timestamp,
   }))
 
-  const { data: insertedCategories, error: insertError } = await supabase
+  const { error: insertError } = await supabase
     .from('product_categories')
     .insert(payload)
     .select()

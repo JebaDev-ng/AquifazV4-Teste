@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       session: data.session 
     })
 
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }

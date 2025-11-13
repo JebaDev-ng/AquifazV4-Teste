@@ -195,6 +195,7 @@ export interface Media {
   alt_text?: string
   category: string
   uploaded_by?: string
+  checksum?: string
   created_at: string
 }
 

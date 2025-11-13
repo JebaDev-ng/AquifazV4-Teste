@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import Image from 'next/image'
 import { useDropzone } from 'react-dropzone'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Upload, X, GripVertical, ImageIcon } from 'lucide-react'
@@ -139,10 +140,12 @@ export default function ImageUploader({
         <div className="space-y-3">
           {/* Imagem Principal */}
           <div className="group relative aspect-[4/3] overflow-hidden rounded-xl bg-[#F5F5F5] border border-[#E5E5EA]">
-            <img 
-              src={images[0].url} 
-              alt="Imagem principal" 
-              className="h-full w-full object-cover"
+            <Image
+              src={images[0].url}
+              alt="Imagem principal"
+              fill
+              sizes="(max-width: 768px) 100vw, 600px"
+              className="object-cover"
             />
             
             {/* Overlay */}
@@ -186,15 +189,17 @@ export default function ImageUploader({
                     exit={{ opacity: 0, scale: 0.8 }}
                     className="group relative aspect-square"
                     draggable
-                    onDragStart={(e) => handleDragStart(e as any, actualIndex)}
+                    onDragStart={(e) => handleDragStart(e as unknown as React.DragEvent, actualIndex)}
                     onDragOver={handleDragOver}
-                    onDrop={(e) => handleDrop(e as any, actualIndex)}
+                    onDrop={(e) => handleDrop(e as unknown as React.DragEvent, actualIndex)}
                   >
                     <div className="relative h-full w-full overflow-hidden rounded-lg bg-[#F5F5F5] border border-[#E5E5EA] transition-all duration-200 hover:border-[#007AFF]">
-                      <img 
-                        src={image.url} 
-                        alt={`Imagem ${actualIndex + 1}`} 
-                        className="h-full w-full object-cover"
+                      <Image
+                        src={image.url}
+                        alt={`Imagem ${actualIndex + 1}`}
+                        fill
+                        sizes="120px"
+                        className="object-cover"
                       />
                       
                       {/* Overlay */}

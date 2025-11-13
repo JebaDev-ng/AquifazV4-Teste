@@ -228,7 +228,7 @@ async function getProductCategories(useMockData = false): Promise<ProductCategor
       .order('name', { ascending: true })
 
     if (data && data.length > 0) {
-      return data
+      return data.filter((category) => category.active !== false)
     }
   } catch (error) {
     console.error('Erro ao carregar categorias (fallback):', error)

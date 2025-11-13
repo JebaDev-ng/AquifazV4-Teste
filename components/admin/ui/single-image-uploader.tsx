@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import Image from 'next/image'
 import { useDropzone } from 'react-dropzone'
-import { motion } from 'framer-motion'
 import { Upload, X, ImageIcon } from 'lucide-react'
 
 import type { UploadedImageMeta } from '@/lib/uploads'
@@ -80,7 +80,7 @@ export default function SingleImageUploader({
         setIsUploading(false)
       }
     },
-    [image, maxSizeMB, bucket, entity, entityId, onImageChange],
+    [maxSizeMB, bucket, entity, entityId, onImageChange],
   )
 
   const isDisabled = isUploading || !entityId
@@ -110,10 +110,12 @@ export default function SingleImageUploader({
         /* Preview da Imagem */
         <div className="space-y-3">
           <div className="group relative aspect-[4/3] overflow-hidden rounded-xl bg-[#F5F5F5] border border-[#E5E5EA]">
-            <img 
-              src={image.url} 
-              alt={label} 
-              className="h-full w-full object-cover"
+            <Image
+              src={image.url}
+              alt={label}
+              fill
+              sizes="(max-width: 768px) 100vw, 600px"
+              className="object-cover"
             />
             
             {/* Overlay */}

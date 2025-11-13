@@ -1,5 +1,7 @@
 'use client'
 
+import Image from 'next/image'
+
 import { useMemo, useRef, useState } from 'react'
 
 import type { UploadedImageMeta } from '@/lib/uploads'
@@ -126,9 +128,9 @@ export default function SingleImageUpload({
     <div className="space-y-2">
       <label className="text-sm font-medium text-gray-700">{label}</label>
       <div className="flex flex-col sm:flex-row gap-4">
-        <div className="w-40 h-40 rounded-2xl border border-dashed border-gray-300 overflow-hidden flex items-center justify-center bg-gray-50">
+        <div className="relative flex h-40 w-40 items-center justify-center overflow-hidden rounded-2xl border border-dashed border-gray-300 bg-gray-50">
           {value ? (
-            <img src={value.url} alt={label} className="w-full h-full object-cover" />
+            <Image src={value.url} alt={label} fill sizes="160px" className="object-cover" />
           ) : (
             <span className="text-xs text-gray-500 text-center px-2">Nenhuma imagem selecionada</span>
           )}

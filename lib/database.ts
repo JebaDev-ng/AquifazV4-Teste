@@ -1,3 +1,11 @@
 export interface Database {
-  // Placeholder para tipos do banco de dados
+  public: {
+    Tables: {
+      [key: string]: {
+        Row: Record<string, unknown>
+        Insert: Record<string, unknown>
+        Update: Record<string, unknown>
+      }
+    }
+  }
 }

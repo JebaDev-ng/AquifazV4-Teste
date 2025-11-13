@@ -73,9 +73,10 @@ export async function GET(
     }
 
     return NextResponse.json(product)
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erro na API de produto:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    const message = error instanceof Error ? error.message : 'Erro interno ao carregar produto'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
@@ -194,7 +195,7 @@ export async function PUT(
     await logActivity('product_updated', 'product', data.id, currentProduct, data)
 
     return NextResponse.json(data)
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       logProductValidationIssues('PUT /api/admin/products/:id', error.issues)
       return NextResponse.json(
@@ -204,7 +205,8 @@ export async function PUT(
     }
     
     console.error('Erro na atualização do produto:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    const message = error instanceof Error ? error.message : 'Erro interno ao atualizar produto'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
@@ -245,8 +247,9 @@ export async function DELETE(
     await logActivity('product_deleted', 'product', id, product, undefined)
 
     return NextResponse.json({ message: 'Produto deletado com sucesso' })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erro na deleção do produto:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    const message = error instanceof Error ? error.message : 'Erro interno ao deletar produto'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

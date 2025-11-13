@@ -3,6 +3,7 @@
 import { v4 as uuidv4 } from 'uuid'
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 
 import { useForm, Controller } from 'react-hook-form'
@@ -257,51 +258,33 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
 
 
   useEffect(() => {
+    let isActive = true
 
     const loadCategories = async () => {
-
       try {
-
         const response = await fetch('/api/admin/categories?active=true')
-
-        if (response.ok) {
-
-          const payload = await response.json()
-
-          if (payload.categories?.length) {
-
-            console.log('[ProductForm] Categorias carregadas:', payload.categories.map((c: any) => ({ id: c.id, name: c.name, sort_order: c.sort_order })))
-
-            console.log('[ProductForm] Primeira categoria:', payload.categories[0]?.id)
-
-            console.log('[ProductForm] Categoria do produto (initialData):', initialData?.category)
-
-            console.log('[ProductForm] isEditing:', isEditing, 'productId:', productId)
-
-            setCategories(payload.categories)
-
-            return
-
-          }
-
+        if (!response.ok) {
+          throw new Error('Erro ao carregar categorias')
         }
 
+        const payload = await response.json()
+        if (isActive && Array.isArray(payload.categories)) {
+          setCategories(payload.categories)
+        }
       } catch (error) {
-
         console.error('Erro ao carregar categorias:', error)
-
       } finally {
-
-        setCategoriesLoading(false)
-
+        if (isActive) {
+          setCategoriesLoading(false)
+        }
       }
-
     }
-
-
 
     loadCategories()
 
+    return () => {
+      isActive = false
+    }
   }, [])
 
 
@@ -1086,7 +1069,7 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
 
                     <p className="text-xs text-gray-500 mt-0.5">
 
-                      Aparece com badge "Destaque" na listagem
+                      Aparece com badge &quot;Destaque&quot; na listagem
 
                     </p>
 
@@ -1240,10 +1223,12 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
                   )}
                   
                   {uploadedImages.length > 0 ? (
-                    <img
+                    <Image
                       src={uploadedImages[0].url}
                       alt={watchedName || 'Produto'}
-                      className="absolute inset-0 w-full h-full object-cover"
+                      fill
+                      sizes="(max-width: 768px) 90vw, 30vw"
+                      className="object-cover"
                     />
                   ) : (
                     <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center">

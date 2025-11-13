@@ -1,23 +1,42 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 
 import { fadeInUp, staggerContainer } from '@/lib/animations/variants'
 import { DEFAULT_PRODUCT_CATEGORIES } from '@/lib/content'
 import type { ProductCategory } from '@/lib/types'
+import { hasValidImage } from '@/lib/utils'
 
 interface CategoriesSectionProps {
   categories?: ProductCategory[]
 }
 
-export function CategoriesSection({ categories }: CategoriesSectionProps) {
-  const resolvedCategories =
-    categories && categories.length > 0
-      ? categories.filter((category) => category.active !== false)
-      : DEFAULT_PRODUCT_CATEGORIES
+const hexColorRegex = /^#(?:[0-9a-fA-F]{3}){1,2}$/
 
-  // Limitar a 4 categorias na homepage
+const isHostedImage = (url?: string | null) => {
+  if (!url) return false
+  const trimmed = url.trim()
+  if (!trimmed) return false
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return true
+  if (trimmed.startsWith('/storage/')) return true
+  if (trimmed.startsWith('/media/')) return true
+  return false
+}
+
+export function CategoriesSection({ categories }: CategoriesSectionProps) {
+  const cleanedCategories = (categories ?? [])
+    .filter((category) => category && category.active !== false)
+    .sort((a, b) => {
+      const orderDiff = (a.sort_order ?? 999) - (b.sort_order ?? 999)
+      if (orderDiff !== 0) return orderDiff
+      return a.name.localeCompare(b.name)
+    })
+
+  const resolvedCategories =
+    cleanedCategories.length > 0 ? cleanedCategories : DEFAULT_PRODUCT_CATEGORIES
+
   const displayCategories = resolvedCategories.slice(0, 4)
 
   return (
@@ -30,9 +49,7 @@ export function CategoriesSection({ categories }: CategoriesSectionProps) {
           viewport={{ once: true }}
           className="space-y-8"
         >
-          <motion.div variants={fadeInUp} className="text-left mb-6 sm:mb-8">
-            {/* Espaço reservado para manter o respiro visual da versão estável */}
-          </motion.div>
+          <motion.div variants={fadeInUp} className="text-left mb-6 sm:mb-8" />
 
           <motion.div
             variants={staggerContainer}
@@ -40,6 +57,11 @@ export function CategoriesSection({ categories }: CategoriesSectionProps) {
           >
             {displayCategories.map((category) => {
               const href = `/produtos?category=${category.id}`
+              const accentColor =
+                category.accent_color && hexColorRegex.test(category.accent_color)
+                  ? category.accent_color
+                  : '#D2D2D7'
+              const hasImage = hasValidImage(category.image_url) && isHostedImage(category.image_url)
 
               return (
                 <motion.div
@@ -51,15 +73,28 @@ export function CategoriesSection({ categories }: CategoriesSectionProps) {
                     href={href}
                     className="group block"
                   >
-                    <div className="relative aspect-square rounded-full overflow-hidden bg-gray-card dark:bg-dark-primary border border-border-primary dark:border-dark-primary mb-2 sm:mb-3 shadow-sm group-hover:shadow-md transition-shadow duration-300">
-                      <div className="absolute inset-0 flex flex-col items-center justify-center p-2 sm:p-4 text-center">
-                        <p className="text-[10px] sm:text-xs font-semibold text-[#6E6E73] dark:text-[#98989D]">
-                          300 x 300
-                        </p>
-                        <p className="text-[8px] sm:text-[10px] text-[#86868B] dark:text-[#636366] mt-0.5 sm:mt-1">
-                          pixels
-                        </p>
-                      </div>
+                    <div
+                      className="relative aspect-square rounded-full overflow-hidden bg-[#F5F5F7] dark:bg-[#1C1C1E] border border-border-primary dark:border-[#2C2C2E] mb-2 sm:mb-3 shadow-sm group-hover:shadow-md transition-shadow duration-300"
+                      style={{ borderColor: accentColor }}
+                    >
+                      {hasImage ? (
+                        <Image
+                          src={category.image_url!}
+                          alt={category.name}
+                          fill
+                          sizes="160px"
+                          className="object-cover"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center p-2 sm:p-4 text-center">
+                          <p className="text-[10px] sm:text-xs font-semibold text-[#6E6E73] dark:text-[#98989D]">
+                            300 x 300
+                          </p>
+                          <p className="text-[8px] sm:text-[10px] text-[#86868B] dark:text-[#636366] mt-0.5 sm:mt-1">
+                            pixels
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     <div className="text-center">

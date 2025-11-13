@@ -2,6 +2,7 @@
 
 import { ThemeProvider } from 'next-themes'
 import { LayoutContent } from './layout-content'
+import { AdminToaster } from '@/components/admin/ui/toaster'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -12,6 +13,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       disableTransitionOnChange
     >
       <LayoutContent>{children}</LayoutContent>
+      <AdminToaster />
     </ThemeProvider>
   )
 }

@@ -613,10 +613,6 @@ export default function AdminSectionDetailPage() {
         },
       )
       if (!response.ok) {
-      const handleSearchProducts = async () => {
-        await fetchProducts(1, false)
-      }
-
         throw new Error('Não foi possível reordenar os produtos.')
       }
     } catch (err) {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createHash } from 'crypto'
 import sharp from 'sharp'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -54,6 +55,50 @@ export async function POST(request: NextRequest) {
 
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
+    const checksum = createHash('sha256').update(buffer).digest('hex')
+
+    const { data: duplicateMedia, error: duplicateError } = await supabase
+      .from('media')
+      .select('id, filename, original_name, url, storage_path, size, mime_type, width, height, alt_text, category, checksum')
+      .eq('checksum', checksum)
+      .eq('category', bucket)
+      .maybeSingle()
+
+    if (duplicateError && duplicateError.code !== 'PGRST116') {
+      console.error('Erro ao verificar duplicidade de mídia:', duplicateError)
+    }
+
+    if (duplicateMedia) {
+      const { data: { publicUrl: existingPublicUrl } } = supabase.storage
+        .from(bucket)
+        .getPublicUrl(duplicateMedia.storage_path)
+
+      const [storedEntity, storedEntityId] = duplicateMedia.storage_path.split('/')
+
+      await logActivity('media_reused', 'media', duplicateMedia.id, undefined, {
+        filename: duplicateMedia.filename,
+        bucket,
+        checksum,
+      })
+
+      return NextResponse.json({
+        id: duplicateMedia.id,
+        url: duplicateMedia.url || existingPublicUrl,
+        storagePath: duplicateMedia.storage_path,
+        bucket,
+        filename: duplicateMedia.filename,
+        original_name: duplicateMedia.original_name,
+        size: duplicateMedia.size,
+        width: duplicateMedia.width,
+        height: duplicateMedia.height,
+        alt_text: duplicateMedia.alt_text,
+        category: duplicateMedia.category,
+        checksum,
+        reused: true,
+        entity: storedEntity || entity,
+        entityId: storedEntityId || entityId,
+      })
+    }
 
     const image = sharp(buffer)
     const metadata = await image.metadata()
@@ -127,8 +172,9 @@ export async function POST(request: NextRequest) {
         original_name: file.name,
         url: publicUrl,
         storage_path: storagePath,
+        checksum,
         size: optimizedBuffer.length,
-  mime_type: contentType,
+        mime_type: contentType,
         width: metadata.width,
         height: metadata.height,
         alt_text: altText,
@@ -161,16 +207,19 @@ export async function POST(request: NextRequest) {
       filename: fileName,
       original_name: file.name,
       size: optimizedBuffer.length,
+      checksum,
       width: metadata.width,
       height: metadata.height,
       alt_text: altText,
       category,
       entity: sanitizedEntity,
       entityId: sanitizedEntityId,
+      reused: false,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erro no upload:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    const message = error instanceof Error ? error.message : 'Erro interno no upload'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
@@ -214,8 +263,9 @@ export async function GET(request: NextRequest) {
         pages: Math.ceil((count || 0) / limit),
       },
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erro na API de mídia:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    const message = error instanceof Error ? error.message : 'Erro interno ao listar mídia'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

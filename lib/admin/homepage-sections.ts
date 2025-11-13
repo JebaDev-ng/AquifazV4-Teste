@@ -2,6 +2,7 @@ import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 
 import { slugifyId } from '@/lib/content'
+import type { Database } from '@/lib/database'
 import type {
   HomepageSection,
   HomepageSectionItem,
@@ -38,7 +39,53 @@ const SECTION_SELECT = `
   )
 `
 
-type GenericSupabaseClient = SupabaseClient<any, 'public', any>
+type GenericSupabaseClient = SupabaseClient<Database>
+
+type SectionItemRecord = {
+  id: string
+  section_id: string
+  product_id: string
+  sort_order: number | null
+  metadata: Record<string, string | boolean> | null
+  created_at?: string | null
+  updated_at?: string | null
+  updated_by?: string | null
+  product?: {
+    id: string
+    name: string
+    slug: string
+    price: number | null
+    unit: string | null
+    image_url: string | null
+    category: string | null
+  } | null
+} | null
+
+type SectionRecord = {
+  id: string
+  title: string
+  subtitle: string | null
+  layout_type: HomepageSection['layout_type']
+  bg_color: HomepageSection['bg_color']
+  limit: number | null
+  view_all_label: string
+  view_all_href: string
+  category_id: string | null
+  sort_order: number | null
+  is_active: boolean | null
+  config: Record<string, string | boolean> | null
+  created_at?: string | null
+  updated_at?: string | null
+  updated_by?: string | null
+  items?: SectionItemRecord[] | null
+}
+
+type SectionItemUpdate = {
+  id: string
+  sort_order: number
+  updated_at: string
+  updated_by: string
+}
 
 const sectionFieldsSchema = z.object({
   title: z.string().trim().min(3).max(120),
@@ -173,12 +220,12 @@ export function generateSectionId(inputId: string | undefined, title: string) {
   return slugifyId(inputId ?? title)
 }
 
-export function mapSectionRecord(record: any): HomepageSectionWithItems {
-  const items = Array.isArray(record?.items)
-    ? record.items
-        .map(mapSectionItemRecord)
-        .sort((a: HomepageSectionItem, b: HomepageSectionItem) => a.sort_order - b.sort_order)
-    : []
+export function mapSectionRecord(record: SectionRecord): HomepageSectionWithItems {
+  const rawItems = Array.isArray(record?.items) ? record.items : []
+  const items = rawItems
+    .map((item) => (item ? mapSectionItemRecord(item) : null))
+    .filter((item): item is HomepageSectionItem => Boolean(item))
+    .sort((a, b) => a.sort_order - b.sort_order)
 
   return {
     id: record.id,
@@ -186,7 +233,7 @@ export function mapSectionRecord(record: any): HomepageSectionWithItems {
     subtitle: record.subtitle ?? null,
     layout_type: record.layout_type,
     bg_color: record.bg_color,
-    limit: 3,
+  limit: record.limit ?? 3,
     view_all_label: record.view_all_label,
     view_all_href: record.view_all_href,
     category_id: record.category_id ?? null,
@@ -200,7 +247,7 @@ export function mapSectionRecord(record: any): HomepageSectionWithItems {
   }
 }
 
-export function mapSectionItemRecord(record: any): HomepageSectionItem {
+export function mapSectionItemRecord(record: Exclude<SectionItemRecord, null>): HomepageSectionItem {
   const product: HomepageSectionProductSummary | undefined = record.product
     ? {
         id: record.product.id,
@@ -209,7 +256,7 @@ export function mapSectionItemRecord(record: any): HomepageSectionItem {
         price: Number(record.product.price ?? 0),
         unit: record.product.unit || 'unidade',
         image_url: record.product.image_url || null,
-        category: record.product.category,
+        category: record.product.category || undefined,
       }
     : undefined
 
@@ -234,7 +281,7 @@ export function clampIndex(value: number, length: number) {
 
 export async function fetchHomepageSections(
   client: GenericSupabaseClient,
-): Promise<{ data: any[] | null; error: PostgrestError | null }> {
+): Promise<{ data: SectionRecord[] | null; error: PostgrestError | null }> {
   return client
     .from('homepage_sections')
     .select(SECTION_SELECT)
@@ -245,7 +292,7 @@ export async function fetchHomepageSections(
 export async function fetchHomepageSectionById(
   client: GenericSupabaseClient,
   id: string,
-): Promise<{ data: any | null; error: PostgrestError | null }> {
+): Promise<{ data: SectionRecord | null; error: PostgrestError | null }> {
   return client
     .from('homepage_sections')
     .select(SECTION_SELECT)
@@ -268,7 +315,8 @@ export async function listSectionItemIds(
     throw error
   }
 
-  return data?.map((row) => row.id) ?? []
+  const rows = (data ?? []) as Array<{ id: string }>
+  return rows.map((row) => row.id)
 }
 
 export async function saveSectionItemOrder(
@@ -284,10 +332,12 @@ export async function saveSectionItemOrder(
     sort_order: index + 1,
     updated_at: now,
     updated_by: userId,
-  }))
+  })) as SectionItemUpdate[]
 
-  const { error } = await client
-    .from('homepage_section_items')
-    .upsert(updates, { onConflict: 'id' })
+  const sectionItemsTable = client.from('homepage_section_items') as unknown as {
+    upsert: (values: SectionItemUpdate[], options?: { onConflict?: string }) => Promise<{ error: PostgrestError | null }>
+  }
+
+  const { error } = await sectionItemsTable.upsert(updates, { onConflict: 'id' })
   if (error) throw error
 }

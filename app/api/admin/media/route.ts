@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+
+import { logActivity } from '@/lib/admin/auth'
 import { createClient } from '@/lib/supabase/server'
 
 export async function GET() {
@@ -39,10 +41,14 @@ export async function DELETE(request: NextRequest) {
     const supabase = await createClient()
     
     // Buscar arquivos para deletar do storage
-    const { data: mediaItems } = await supabase
+    const { data: mediaItems, error: fetchError } = await supabase
       .from('media')
-      .select('filename')
+      .select('id, filename, storage_path, category, checksum')
       .in('id', ids)
+
+    if (fetchError) {
+      throw fetchError
+    }
 
     // Deletar do banco
     const { error: dbError } = await supabase
@@ -54,12 +60,39 @@ export async function DELETE(request: NextRequest) {
       throw dbError
     }
 
-    // Deletar arquivos do storage
     if (mediaItems && mediaItems.length > 0) {
-      const filenames = mediaItems.map(item => item.filename)
-      await supabase.storage
-        .from('media')
-        .remove(filenames)
+      for (const item of mediaItems) {
+        const bucket = item.category || 'media'
+
+        await logActivity('media_deleted_bulk', 'media', item.id, undefined, {
+          filename: item.filename,
+          bucket,
+          checksum: item.checksum,
+        })
+
+        const { count: references, error: referenceError } = await supabase
+          .from('media')
+          .select('*', { head: true, count: 'exact' })
+          .eq('storage_path', item.storage_path)
+          .eq('category', bucket)
+
+        if (referenceError) {
+          console.error('Erro ao verificar referências de mídia:', referenceError)
+          continue
+        }
+
+        if (references && references > 0) {
+          continue
+        }
+
+        const { error: storageError } = await supabase.storage
+          .from(bucket)
+          .remove([item.storage_path])
+
+        if (storageError) {
+          console.error('Erro ao deletar arquivo do storage:', storageError)
+        }
+      }
     }
 
     return NextResponse.json({ success: true })

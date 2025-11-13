@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import { requireAdmin, requireEditor, logActivity } from '@/lib/admin/auth'
-import { DEFAULT_PRODUCT_CATEGORIES, slugifyId } from '@/lib/content'
+import { slugifyId } from '@/lib/content'
 import { createClient } from '@/lib/supabase/server'
 
 const imageSchema = z
@@ -15,6 +15,8 @@ const imageSchema = z
     'Informe uma URL completa (https://) ou um caminho relativo iniciando com /.'
   )
 
+const hexColorRegex = /^#(?:[0-9a-fA-F]{3}){1,2}$/
+
 const baseCategorySchema = z.object({
   id: z
     .string()
@@ -24,10 +26,14 @@ const baseCategorySchema = z.object({
     .regex(/^[a-z0-9-]+$/, 'Use apenas letras, números e hífens'),
   name: z.string().trim().min(2).max(80),
   description: z.string().trim().max(200).optional(),
-  icon: z.string().trim().max(80).optional(),
   image_url: imageSchema,
   storage_path: z.string().optional(),
-  sort_order: z.number().int().min(0).max(100).optional(),
+  accent_color: z
+    .string()
+    .trim()
+    .optional()
+    .refine((value) => !value || hexColorRegex.test(value), 'Informe uma cor no formato hex (#RRGGBB).'),
+  sort_order: z.number().int().min(0).max(999).optional(),
   active: z.boolean().optional(),
 })
 
@@ -38,7 +44,6 @@ export async function GET(request: NextRequest) {
   const supabase = await createClient()
   const { searchParams } = request.nextUrl
   const activeParam = searchParams.get('active')
-  const includeDefaults = searchParams.get('with_defaults') === 'true'
 
   let query = supabase
     .from('product_categories')
@@ -62,10 +67,6 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  if ((!data || data.length === 0) && includeDefaults) {
-    return NextResponse.json({ categories: DEFAULT_PRODUCT_CATEGORIES })
-  }
-
   return NextResponse.json({ categories: data ?? [] })
 }
 
@@ -84,10 +85,10 @@ export async function POST(request: NextRequest) {
       id,
       name: parsed.name,
       description: parsed.description,
-      icon: parsed.icon,
       image_url: parsed.image_url,
       storage_path: parsed.storage_path || null,
-      sort_order: parsed.sort_order ?? DEFAULT_PRODUCT_CATEGORIES.length + 1,
+      accent_color: parsed.accent_color || null,
+      sort_order: parsed.sort_order ?? 0,
       active: parsed.active ?? true,
       created_at: now,
       updated_at: now,

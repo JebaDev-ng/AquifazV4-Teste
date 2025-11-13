@@ -71,7 +71,30 @@ export async function RecentActivity() {
   )
 }
 
-function ActivityItem({ activity }: { activity: any }) {
+interface ActivityType {
+  id: string
+  action: string
+  details: {
+    product_name?: string
+    product_id?: string
+    category_name?: string
+    category_id?: string
+  }
+  created_at: string
+  resource_id?: string
+  new_values?: {
+    name?: string
+  }
+  profile?: {
+    name: string
+  }
+  profiles?: {
+    full_name?: string
+    email?: string
+  }
+}
+
+function ActivityItem({ activity }: { activity: ActivityType }) {
   const Icon = actionIcons[activity.action as keyof typeof actionIcons] || Package
   const colorClass = actionColors[activity.action as keyof typeof actionColors] || actionColors.product_created
 
