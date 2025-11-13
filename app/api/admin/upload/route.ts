@@ -5,14 +5,24 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { requireEditor, logActivity } from '@/lib/admin/auth'
 import { createClient } from '@/lib/supabase/server'
+import { ALLOWED_BUCKETS } from './constants'
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
-const ALLOWED_BUCKETS = new Set(['media', 'products', 'categories', 'banners', 'content_sections', 'hero'])
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml']
 
 function sanitizeSegment(value: string, fallback: string) {
   const cleaned = value.toLowerCase().replace(/[^a-z0-9-_]/g, '')
   return cleaned || fallback
+}
+
+function sanitizePath(rawPath: string | null, fallback: string) {
+  if (!rawPath) return fallback
+  const segments = rawPath
+    .split('/')
+    .map((segment) => sanitizeSegment(segment, ''))
+    .filter(Boolean)
+
+  return segments.length > 0 ? segments.join('/') : fallback
 }
 
 export async function POST(request: NextRequest) {
@@ -20,25 +30,26 @@ export async function POST(request: NextRequest) {
     await requireEditor()
 
     const formData = await request.formData()
-    const file = formData.get('file') as File
-    const category = (formData.get('category') as string) || 'general'
+    const file = formData.get('file') as File | null
+    const bucket = ((formData.get('bucket') as string) || '').trim()
+    const rawEntity = ((formData.get('entity') as string) || bucket).trim()
+    const rawEntityId = ((formData.get('entity_id') as string) || uuidv4()).trim()
+    const rawFileRole = ((formData.get('file_role') as string) || 'main').trim()
+    const prefixInput = (formData.get('prefix') as string) || ''
     const altText = (formData.get('alt_text') as string) || ''
-    const bucket = (formData.get('bucket') as string) || 'media'
-    const entity = (formData.get('entity') as string) || bucket
-    const entityId = (formData.get('entity_id') as string) || uuidv4()
-    const fileRole = (formData.get('file_role') as string) || uuidv4()
+    const mediaCategory = ((formData.get('category') as string) || rawEntity).trim() || bucket
 
     if (!file) {
       return NextResponse.json({ error: 'Nenhum arquivo enviado' }, { status: 400 })
     }
 
-    if (!ALLOWED_BUCKETS.has(bucket)) {
+    if (!bucket || !ALLOWED_BUCKETS.has(bucket)) {
       return NextResponse.json({ error: 'Bucket inválido' }, { status: 400 })
     }
 
     if (!ALLOWED_TYPES.includes(file.type)) {
       return NextResponse.json(
-        { error: 'Tipo de arquivo não permitido. Use JPEG, PNG, WebP ou GIF.' },
+        { error: 'Tipo de arquivo não permitido. Use JPEG, PNG, WebP, GIF ou SVG.' },
         { status: 400 }
       )
     }
@@ -57,11 +68,17 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(arrayBuffer)
     const checksum = createHash('sha256').update(buffer).digest('hex')
 
+    const sanitizedEntity = sanitizeSegment(rawEntity || bucket, bucket)
+    const sanitizedEntityId = sanitizeSegment(rawEntityId, uuidv4())
+    const sanitizedRole = sanitizeSegment(rawFileRole || 'main', uuidv4())
+    const fallbackPrefix = `${sanitizedEntity}/${sanitizedEntityId}`
+    const sanitizedPrefix = sanitizePath(prefixInput, fallbackPrefix)
+
     const { data: duplicateMedia, error: duplicateError } = await supabase
-      .from('media')
-      .select('id, filename, original_name, url, storage_path, size, mime_type, width, height, alt_text, category, checksum')
+      .from('media_library')
+      .select('id, filename, original_name, url, storage_path, size, mime_type, width, height, alt_text, category, checksum, bucket')
+      .eq('bucket', bucket)
       .eq('checksum', checksum)
-      .eq('category', bucket)
       .maybeSingle()
 
     if (duplicateError && duplicateError.code !== 'PGRST116') {
@@ -73,7 +90,9 @@ export async function POST(request: NextRequest) {
         .from(bucket)
         .getPublicUrl(duplicateMedia.storage_path)
 
-      const [storedEntity, storedEntityId] = duplicateMedia.storage_path.split('/')
+      const pathSegments = duplicateMedia.storage_path.split('/')
+      const storedEntity = pathSegments[0] || sanitizedEntity
+      const storedEntityId = pathSegments[1] || sanitizedEntityId
 
       await logActivity('media_reused', 'media', duplicateMedia.id, undefined, {
         filename: duplicateMedia.filename,
@@ -95,20 +114,16 @@ export async function POST(request: NextRequest) {
         category: duplicateMedia.category,
         checksum,
         reused: true,
-        entity: storedEntity || entity,
-        entityId: storedEntityId || entityId,
+        entity: storedEntity,
+        entityId: storedEntityId,
       })
     }
 
     const image = sharp(buffer)
     const metadata = await image.metadata()
 
-    const sanitizedEntity = sanitizeSegment(entity, bucket)
-    const sanitizedEntityId = sanitizeSegment(entityId, uuidv4())
-    const sanitizedRole = sanitizeSegment(fileRole, uuidv4())
-
     const hasAlpha = Boolean(metadata.hasAlpha)
-    let targetFormat: 'jpeg' | 'png' | 'webp' | 'gif'
+    let targetFormat: 'jpeg' | 'png' | 'webp' | 'gif' | 'svg'
     let contentType: string
 
     if (file.type === 'image/gif') {
@@ -120,18 +135,27 @@ export async function POST(request: NextRequest) {
     } else if (file.type === 'image/webp') {
       targetFormat = 'webp'
       contentType = 'image/webp'
+    } else if (file.type === 'image/svg+xml') {
+      targetFormat = 'svg'
+      contentType = 'image/svg+xml'
     } else {
       targetFormat = 'jpeg'
       contentType = 'image/jpeg'
     }
 
     const extension =
-      targetFormat === 'jpeg' ? 'jpg' : targetFormat === 'gif' ? 'gif' : targetFormat
+      targetFormat === 'jpeg'
+        ? 'jpg'
+        : targetFormat === 'gif'
+        ? 'gif'
+        : targetFormat === 'svg'
+        ? 'svg'
+        : targetFormat
     const fileName = `${sanitizedRole}.${extension}`
-    const storagePath = `${sanitizedEntity}/${sanitizedEntityId}/${fileName}`
+    const storagePath = `${sanitizedPrefix}/${fileName}`
 
     let optimizedBuffer: Buffer
-    if (targetFormat === 'gif') {
+    if (targetFormat === 'gif' || targetFormat === 'svg') {
       optimizedBuffer = buffer
     } else {
       const resized = image.resize(2000, 2000, {
@@ -166,7 +190,7 @@ export async function POST(request: NextRequest) {
       .getPublicUrl(storagePath)
 
     const { data: mediaRecord, error: dbError } = await supabase
-      .from('media')
+      .from('media_library')
       .insert({
         filename: fileName,
         original_name: file.name,
@@ -178,7 +202,8 @@ export async function POST(request: NextRequest) {
         width: metadata.width,
         height: metadata.height,
         alt_text: altText,
-        category,
+        category: mediaCategory,
+        bucket,
         uploaded_by: user?.id,
         created_at: new Date().toISOString(),
       })
@@ -195,7 +220,7 @@ export async function POST(request: NextRequest) {
       filename: fileName,
       original_name: file.name,
       size: optimizedBuffer.length,
-      category,
+      category: mediaCategory,
       bucket,
     })
 
@@ -211,7 +236,7 @@ export async function POST(request: NextRequest) {
       width: metadata.width,
       height: metadata.height,
       alt_text: altText,
-      category,
+      category: mediaCategory,
       entity: sanitizedEntity,
       entityId: sanitizedEntityId,
       reused: false,
@@ -235,7 +260,7 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient()
     
     let query = supabase
-      .from('media')
+      .from('media_library')
       .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
 

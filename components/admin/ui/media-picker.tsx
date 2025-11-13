@@ -6,17 +6,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/admin/ui/button'
 import { Input } from '@/components/admin/ui/input'
 import { Modal } from '@/components/admin/ui/modal'
+import type { UploadedImageMeta } from '@/lib/uploads'
 
-export type MediaPickerValue = {
-  url: string
-  storagePath: string
-  bucket?: string
-  reused?: boolean
-  checksum?: string
-  width?: number
-  height?: number
-  mime_type?: string
-}
+export type MediaPickerValue = UploadedImageMeta
 
 interface MediaPickerProps {
   value: MediaPickerValue | null
@@ -24,21 +16,29 @@ interface MediaPickerProps {
   bucket: string
   entity: string
   entityId?: string
+  fileRole: string
   label?: string
   helperText?: string
   maxSizeMb?: number
   allowedMimeTypes?: string[]
+  prefix?: string
 }
 
 type GalleryItem = {
+  id?: string
   url: string
   storage_path: string
   bucket: string
+  filename?: string
+  size?: number
+  created_at?: string
   checksum?: string
   width?: number
   height?: number
   mime_type?: string
 }
+
+const DEFAULT_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml']
 
 export default function MediaPicker({
   value,
@@ -46,10 +46,12 @@ export default function MediaPicker({
   bucket,
   entity,
   entityId,
+  fileRole,
   label = 'Imagem',
   helperText,
   maxSizeMb = 5,
-  allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml'],
+  allowedMimeTypes = DEFAULT_ALLOWED_TYPES,
+  prefix,
 }: MediaPickerProps) {
   const [open, setOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<'gallery' | 'upload'>('gallery')
@@ -59,10 +61,19 @@ export default function MediaPicker({
   const [file, setFile] = useState<File | null>(null)
   const [filter, setFilter] = useState('')
 
-  const prefix = useMemo(() => {
-    const id = (entityId || 'temp').trim() || 'temp'
-    return `${entity}/${id}/`
-  }, [entity, entityId])
+  const normalizedEntity = useMemo(() => (entity.trim() || 'entity').toLowerCase(), [entity])
+  const resolvedEntityId = useMemo(() => {
+    const cleaned = (entityId || 'temp').trim()
+    return cleaned.length ? cleaned : 'temp'
+  }, [entityId])
+
+  const computedPrefix = useMemo(() => {
+    const custom = prefix?.trim().replace(/^\/+/, '').replace(/\/+$/, '')
+    if (custom && custom.length > 0) {
+      return custom.replace(/\/+/g, '/')
+    }
+    return `${normalizedEntity}/${resolvedEntityId}`
+  }, [normalizedEntity, prefix, resolvedEntityId])
 
   const filteredGallery = useMemo(() => {
     if (!filter.trim()) return gallery
@@ -76,7 +87,9 @@ export default function MediaPicker({
     try {
       const url = new URL('/api/admin/upload/gallery', window.location.origin)
       url.searchParams.set('bucket', bucket)
-      url.searchParams.set('prefix', prefix)
+      if (computedPrefix) {
+        url.searchParams.set('prefix', computedPrefix)
+      }
       const res = await fetch(url.toString())
       if (!res.ok) throw new Error('Falha ao carregar galeria')
       const data = await res.json()
@@ -88,7 +101,7 @@ export default function MediaPicker({
     } finally {
       setIsLoading(false)
     }
-  }, [bucket, prefix])
+  }, [bucket, computedPrefix])
 
   useEffect(() => {
     if (open && activeTab === 'gallery') {
@@ -126,9 +139,10 @@ export default function MediaPicker({
       const form = new FormData()
       form.append('file', file)
       form.append('bucket', bucket)
-      form.append('entity', entity)
-      form.append('entity_id', entityId || 'temp')
-      form.append('prefix', prefix)
+      form.append('entity', normalizedEntity)
+      form.append('entity_id', resolvedEntityId)
+      form.append('file_role', fileRole)
+      form.append('prefix', computedPrefix)
 
       const res = await fetch('/api/admin/upload', { method: 'POST', body: form })
       if (!res.ok) {

@@ -1,7 +1,7 @@
 export interface UploadedImageMeta {
   url: string
   storagePath: string
-  bucket?: string
+  bucket: string
   reused?: boolean
   checksum?: string
   width?: number

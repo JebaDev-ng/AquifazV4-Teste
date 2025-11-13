@@ -25,13 +25,15 @@ interface MediaItem {
   created_at: string
 }
 
-const MEDIA_CATEGORIES = [
-  'Todos',
-  'Produtos',
-  'Banners',
-  'Hero',
-  'Outros'
-]
+const MEDIA_CATEGORIES = ['Todos', 'Produtos', 'Banners', 'Hero', 'Outros'] as const
+
+const CATEGORY_BUCKET_MAP: Record<(typeof MEDIA_CATEGORIES)[number], 'products' | 'banners' | 'hero' | 'categories'> = {
+  Todos: 'products',
+  Produtos: 'products',
+  Banners: 'banners',
+  Hero: 'hero',
+  Outros: 'categories',
+}
 
 export default function MediaLibraryPage() {
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
@@ -48,10 +50,24 @@ export default function MediaLibraryPage() {
   
   const ITEMS_PER_PAGE = 24
 
+  const fetchMediaItems = useCallback(async () => {
+    try {
+      const response = await fetch('/api/admin/media')
+      if (response.ok) {
+        const data = await response.json()
+        setMediaItems(data)
+      }
+    } catch (error) {
+      console.error('Erro ao carregar mídia:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
   // Carregar mídia
   useEffect(() => {
     fetchMediaItems()
-  }, [])
+  }, [fetchMediaItems])
 
   // Filtrar e ordenar
   useEffect(() => {
@@ -88,25 +104,25 @@ export default function MediaLibraryPage() {
     setCurrentPage(1)
   }, [mediaItems, selectedCategory, searchTerm, sortBy])
 
-  const fetchMediaItems = async () => {
-    try {
-      const response = await fetch('/api/admin/media')
-      if (response.ok) {
-        const data = await response.json()
-        setMediaItems(data)
-      }
-    } catch (error) {
-      console.error('Erro ao carregar mídia:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     setIsUploading(true)
+
+    const targetBucket = CATEGORY_BUCKET_MAP[selectedCategory as (typeof MEDIA_CATEGORIES)[number]] ?? 'products'
+    const entity =
+      targetBucket === 'products'
+        ? 'product'
+        : targetBucket === 'categories'
+        ? 'category'
+        : targetBucket === 'banners'
+        ? 'banner'
+        : 'hero'
+    const entityId = `admin-library-${targetBucket}`
+    const prefix = `${targetBucket}/${entityId}`
+    const fileRoleBase = `library_${targetBucket}`
     
     try {
-      for (const file of acceptedFiles) {
+      for (const [index, file] of acceptedFiles.entries()) {
         if (file.size > 10 * 1024 * 1024) { // 10MB max
           alert(`Arquivo ${file.name} é muito grande. Máximo 10MB`)
           continue
@@ -114,7 +130,12 @@ export default function MediaLibraryPage() {
 
         const formData = new FormData()
         formData.append('file', file)
-        formData.append('type', 'media')
+        formData.append('bucket', targetBucket)
+        formData.append('entity', entity)
+        formData.append('entity_id', entityId)
+        formData.append('file_role', `${fileRoleBase}_${Date.now()}_${index}`)
+        formData.append('prefix', prefix)
+        formData.append('category', targetBucket)
 
         const response = await fetch('/api/admin/upload', {
           method: 'POST',
@@ -134,7 +155,7 @@ export default function MediaLibraryPage() {
     } finally {
       setIsUploading(false)
     }
-  }, [])
+  }, [selectedCategory, fetchMediaItems])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,

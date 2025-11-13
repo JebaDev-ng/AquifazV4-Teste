@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { logActivity } from '@/lib/admin/auth'
+import { logActivity, requireEditor } from '@/lib/admin/auth'
 import { createClient } from '@/lib/supabase/server'
 
 export async function GET() {
   try {
+    await requireEditor()
     const supabase = await createClient()
     
     const { data: media, error } = await supabase
-      .from('media')
+      .from('media_library')
       .select('*')
       .order('created_at', { ascending: false })
 
@@ -28,6 +29,7 @@ export async function GET() {
 
 export async function DELETE(request: NextRequest) {
   try {
+    await requireEditor()
     const { searchParams } = new URL(request.url)
     const ids = searchParams.get('ids')?.split(',') || []
 
@@ -42,8 +44,8 @@ export async function DELETE(request: NextRequest) {
     
     // Buscar arquivos para deletar do storage
     const { data: mediaItems, error: fetchError } = await supabase
-      .from('media')
-      .select('id, filename, storage_path, category, checksum')
+      .from('media_library')
+      .select('id, filename, storage_path, bucket, checksum')
       .in('id', ids)
 
     if (fetchError) {
@@ -52,7 +54,7 @@ export async function DELETE(request: NextRequest) {
 
     // Deletar do banco
     const { error: dbError } = await supabase
-      .from('media')
+      .from('media_library')
       .delete()
       .in('id', ids)
 
@@ -62,7 +64,7 @@ export async function DELETE(request: NextRequest) {
 
     if (mediaItems && mediaItems.length > 0) {
       for (const item of mediaItems) {
-        const bucket = item.category || 'media'
+        const bucket = item.bucket || 'media'
 
         await logActivity('media_deleted_bulk', 'media', item.id, undefined, {
           filename: item.filename,
@@ -71,10 +73,10 @@ export async function DELETE(request: NextRequest) {
         })
 
         const { count: references, error: referenceError } = await supabase
-          .from('media')
+          .from('media_library')
           .select('*', { head: true, count: 'exact' })
           .eq('storage_path', item.storage_path)
-          .eq('category', bucket)
+          .eq('bucket', bucket)
 
         if (referenceError) {
           console.error('Erro ao verificar referências de mídia:', referenceError)

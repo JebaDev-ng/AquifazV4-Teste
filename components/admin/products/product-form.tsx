@@ -19,7 +19,7 @@ import { Button } from '@/components/admin/ui/button'
 import { Input } from '@/components/admin/ui/input'
 import { LiquidToggle, GooeyFilter } from '@/components/admin/ui/liquid-toggle'
 
-import ImageUploader from '@/components/admin/products/image-uploader'
+import MediaPicker from '@/components/admin/ui/media-picker'
 
 import { Product, ProductCategory } from '@/lib/types'
 
@@ -28,6 +28,7 @@ import type { UploadedImageMeta } from '@/lib/uploads'
 
 
 const UNIT_OPTIONS = ['unidade', 'par', 'kit', 'm²', 'cm', 'lote'] as const
+const MAX_PRODUCT_IMAGES = 5
 
 const productSchema = z.object({
   name: z.string().min(3, 'Nome deve ter pelo menos 3 caracteres'),
@@ -77,11 +78,18 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
       return initialData.images.map((url, index) => ({
         url,
         storagePath: index === 0 ? initialData.storage_path || '' : '',
+        bucket: 'products',
       }))
     }
 
     if (initialData?.image_url) {
-      return [{ url: initialData.image_url, storagePath: initialData.storage_path || '' }]
+      return [
+        {
+          url: initialData.image_url,
+          storagePath: initialData.storage_path || '',
+          bucket: 'products',
+        },
+      ]
     }
 
     return []
@@ -306,6 +314,27 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
 
 
   const resolvedProductId = productId ?? uploadReferenceId
+  const productMediaPrefix = useMemo(() => `products/${resolvedProductId}`, [resolvedProductId])
+
+  const handleImageSlotChange = useCallback((index: number, image: UploadedImageMeta | null) => {
+    setUploadedImages((prev) => {
+      const next = [...prev]
+      if (!image) {
+        next.splice(index, 1)
+        return next
+      }
+      next[index] = image
+      return next
+    })
+  }, [])
+
+  const handleAddGalleryImage = useCallback((image: UploadedImageMeta | null) => {
+    if (!image) return
+    setUploadedImages((prev) => {
+      const next = [...prev, image]
+      return next.slice(0, MAX_PRODUCT_IMAGES)
+    })
+  }, [])
 
   const onSubmit = async (data: ProductFormData) => {
     setIsLoading(true)
@@ -1337,14 +1366,62 @@ export default function ProductForm({ productId, initialData }: ProductFormProps
                 <h3 className="text-base font-medium text-[#1D1D1F]">Imagens do produto</h3>
               </div>
               
-              <ImageUploader
-                images={uploadedImages}
-                onImagesChange={setUploadedImages}
-                entityId={resolvedProductId}
-                bucket="products"
-                entity="products"
-                maxImages={5}
-              />
+              <div className="space-y-4">
+                {uploadedImages.length === 0 && (
+                  <p className="text-sm text-[#6E6E73]">
+                    Selecione pelo menos uma imagem para destacar o produto na loja.
+                  </p>
+                )}
+
+                {uploadedImages.map((image, index) => (
+                  <div
+                    key={`${image.storagePath || image.url}-${index}`}
+                    className="rounded-xl border border-[#E5E5EA] p-4"
+                  >
+                    <MediaPicker
+                      label={
+                        index === 0 ? 'Imagem principal' : `Imagem da galeria ${index + 1}`
+                      }
+                      value={image}
+                      onChange={(newValue) => handleImageSlotChange(index, newValue)}
+                      bucket="products"
+                      entity="product"
+                      entityId={resolvedProductId}
+                      prefix={productMediaPrefix}
+                      fileRole={index === 0 ? 'product_main' : `product_gallery_${index + 1}`}
+                      helperText={
+                        index === 0
+                          ? 'Exibida na homepage, listagens e destaque.'
+                          : 'Imagem complementar para a galeria do produto.'
+                      }
+                    />
+                  </div>
+                ))}
+
+                {uploadedImages.length < MAX_PRODUCT_IMAGES && (
+                  <div className="rounded-xl border border-dashed border-[#D2D2D7] p-4">
+                    <MediaPicker
+                      label={
+                        uploadedImages.length === 0
+                          ? 'Selecionar imagem principal'
+                          : 'Adicionar imagem à galeria'
+                      }
+                      value={null}
+                      onChange={handleAddGalleryImage}
+                      bucket="products"
+                      entity="product"
+                      entityId={resolvedProductId}
+                      prefix={productMediaPrefix}
+                      fileRole={`product_gallery_${uploadedImages.length + 1}`}
+                      helperText={`Você pode adicionar até ${MAX_PRODUCT_IMAGES} imagens por produto.`}
+                    />
+                  </div>
+                )}
+
+                <p className="text-xs text-[#6E6E73] text-right">
+                  {uploadedImages.length}/{MAX_PRODUCT_IMAGES} imagens selecionadas
+                </p>
+              </div>
             </motion.div>
 
             </div>

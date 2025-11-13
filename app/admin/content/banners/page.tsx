@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/admin/ui/button'
 import { Input } from '@/components/admin/ui/input'
-import SingleImageUploader from '@/components/admin/ui/single-image-uploader'
+import MediaPicker from '@/components/admin/ui/media-picker'
 import { LiquidToggle } from '@/components/admin/ui/liquid-toggle'
 import { DEFAULT_BANNER_CONTENT, BANNER_SECTION_ID } from '@/lib/content'
 import type { BannerContent } from '@/lib/types'
@@ -33,7 +33,9 @@ export default function BannerContentPage() {
         const payload = await response.json()
         setBannerContent({ ...DEFAULT_BANNER_CONTENT, ...payload })
         setBannerImage(
-          payload.image_url ? { url: payload.image_url, storagePath: payload.storage_path || '' } : null,
+          payload.image_url
+            ? { url: payload.image_url, storagePath: payload.storage_path || '', bucket: 'banners' }
+            : null,
         )
       }
     } catch (error) {
@@ -224,9 +226,10 @@ export default function BannerContentPage() {
               </div>
 
               <div className="bg-white rounded-2xl border border-[#E5E5EA] p-6">
-                <SingleImageUploader
-                  image={bannerImage}
-                  onImageChange={(image) => {
+                <MediaPicker
+                  label="Imagem do banner"
+                  value={bannerImage}
+                  onChange={(image) => {
                     setBannerImage(image)
                     setBannerContent((prev) => ({
                       ...prev,
@@ -234,11 +237,12 @@ export default function BannerContentPage() {
                       storage_path: image?.storagePath || '',
                     }))
                   }}
-                  entityId={BANNER_SECTION_ID}
                   bucket="banners"
                   entity="banner"
+                  entityId={BANNER_SECTION_ID}
+                  prefix={`banners/${BANNER_SECTION_ID}`}
+                  fileRole="banner_image"
                   helperText="Imagem exibida na faixa promocional da homepage"
-                  recommendedSize="1920×500px"
                 />
               </div>
             </div>

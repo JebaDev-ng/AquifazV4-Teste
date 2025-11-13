@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { logActivity } from '@/lib/admin/auth'
+import { logActivity, requireEditor } from '@/lib/admin/auth'
 import { createClient } from '@/lib/supabase/server'
 
 export async function DELETE(
@@ -8,14 +8,15 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await requireEditor()
     const { id } = await params
 
     const supabase = await createClient()
     
     // Buscar arquivo para deletar do storage
     const { data: mediaItem, error: fetchError } = await supabase
-      .from('media')
-      .select('filename, storage_path, category, checksum')
+      .from('media_library')
+      .select('filename, storage_path, bucket, checksum')
       .eq('id', id)
       .single()
 
@@ -34,11 +35,11 @@ export async function DELETE(
       )
     }
 
-    const bucket = mediaItem.category || 'media'
+    const bucket = mediaItem.bucket || 'media'
 
     // Deletar do banco
     const { error: dbError } = await supabase
-      .from('media')
+      .from('media_library')
       .delete()
       .eq('id', id)
 
@@ -54,10 +55,10 @@ export async function DELETE(
 
     // Verificar se ainda existe alguma referência à mesma mídia
     const { count: references, error: referenceError } = await supabase
-      .from('media')
+      .from('media_library')
       .select('*', { head: true, count: 'exact' })
       .eq('storage_path', mediaItem.storage_path)
-      .eq('category', bucket)
+      .eq('bucket', bucket)
 
     if (referenceError) {
       console.error('Erro ao verificar referências de mídia:', referenceError)

@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS public.media_library (
   original_name TEXT NOT NULL,
   url TEXT NOT NULL,
   storage_path TEXT NOT NULL,
+  bucket TEXT NOT NULL DEFAULT 'media',
   checksum TEXT,
   size INTEGER NOT NULL,
   mime_type TEXT NOT NULL,
@@ -32,7 +33,7 @@ CREATE INDEX IF NOT EXISTS idx_media_library_category ON public.media_library(ca
 CREATE INDEX IF NOT EXISTS idx_media_library_mime_type ON public.media_library(mime_type);
 CREATE INDEX IF NOT EXISTS idx_media_library_uploaded_by ON public.media_library(uploaded_by);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_media_library_checksum_unique
-  ON public.media_library(checksum)
+  ON public.media_library(bucket, checksum)
   WHERE checksum IS NOT NULL;
 
 -- RLS

@@ -196,7 +196,11 @@ useEffect(() => {
 
     setCategoryImage(
       category.image_url
-        ? { url: category.image_url, storagePath: category.storage_path || '' }
+        ? {
+            url: category.image_url,
+            storagePath: category.storage_path || '',
+            bucket: 'categories',
+          }
         : null
     )
   }
@@ -644,10 +648,12 @@ useEffect(() => {
                 <MediaPicker
                   label="Imagem da categoria"
                   value={categoryImage}
-                  onChange={(v) => handleCategoryImageChange(v as UploadedImageMeta | null)}
-                  bucket="media"
-                  entity="categories"
-                  entityId={watchedSlug}
+                  onChange={(value) => handleCategoryImageChange(value as UploadedImageMeta | null)}
+                  bucket="categories"
+                  entity="category"
+                  entityId={watchedSlug || editingId || 'category-temp'}
+                  prefix={`categories/${watchedSlug || editingId || 'category-temp'}`}
+                  fileRole="category_image"
                 />
               </motion.div>
 

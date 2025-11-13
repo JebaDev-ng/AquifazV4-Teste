@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 
 import { Button } from '@/components/admin/ui/button'
 import { Input } from '@/components/admin/ui/input'
-import SingleImageUploader from '@/components/admin/ui/single-image-uploader'
+import MediaPicker from '@/components/admin/ui/media-picker'
 import { HeroSection } from '@/components/ui/hero/hero-section'
 import { LiquidToggle } from '@/components/admin/ui/liquid-toggle'
 import {
@@ -37,7 +37,11 @@ export default function HeroContentPage() {
   setHeroContent({ ...DEFAULT_HERO_CONTENT, ...payload })
         setPromoImage(
           payload.promo_image_url
-            ? { url: payload.promo_image_url, storagePath: payload.promo_storage_path || '' }
+            ? {
+                url: payload.promo_image_url,
+                storagePath: payload.promo_storage_path || '',
+                bucket: 'hero',
+              }
             : null,
         )
       }
@@ -214,9 +218,10 @@ export default function HeroContentPage() {
                   <h3 className="text-base font-medium text-[#1D1D1F]">Imagem promocional</h3>
                 </div>
                 
-                <SingleImageUploader
-                  image={promoImage}
-                  onImageChange={(image) => {
+                <MediaPicker
+                  label="Imagem principal da seção hero"
+                  value={promoImage}
+                  onChange={(image) => {
                     setPromoImage(image)
                     setHeroContent((prev) => ({
                       ...prev,
@@ -224,11 +229,12 @@ export default function HeroContentPage() {
                       promo_storage_path: image?.storagePath || '',
                     }))
                   }}
-                  entityId={HERO_SECTION_ID}
-                  bucket="content_sections"
+                  bucket="hero"
                   entity="hero"
+                  entityId={HERO_SECTION_ID}
+                  prefix={`sections/${HERO_SECTION_ID}`}
+                  fileRole="hero_main"
                   helperText="Imagem exibida na hero section da homepage"
-                  recommendedSize="1200×900px"
                 />
               </motion.div>
             </div>

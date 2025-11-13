@@ -21,7 +21,7 @@ export async function DashboardStats() {
     supabase.from('products').select('*', { count: 'exact', head: true }),
     supabase.from('products').select('*', { count: 'exact', head: true }).eq('active', true),
     supabase.from('products').select('*', { count: 'exact', head: true }).eq('featured', true),
-    supabase.from('media').select('*', { count: 'exact', head: true }),
+    supabase.from('media_library').select('*', { count: 'exact', head: true }),
   ])
 
   const stats = [
