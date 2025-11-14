@@ -1,0 +1,4 @@
+- Antes de finalizar qualquer tarefa, executar `npm run lint` e, se aplicável, `npm run build` para garantir integridade.
+- Validar manualmente fluxos afetados (UI/admin) pois não há testes automatizados; seguir checklists em `docs/**` quando existirem.
+- Garantir que migrações/SQL estejam sincronizadas com Supabase e documentadas.
+- Revisar alterações com `git status` e preparar commit usando prefixos definidos nas instruções.

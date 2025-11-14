@@ -17,7 +17,7 @@ export default function ProductsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [categories, setCategories] = useState<ProductCategory[]>([])
   const [categoriesLoading, setCategoriesLoading] = useState(true)
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list')
   
   const PRODUCTS_PER_PAGE = 12
 
@@ -208,13 +208,13 @@ export default function ProductsPage() {
           </div>
           
           {/* Toggle de visualização */}
-          <div className="flex gap-2 bg-[#F5F5F5] p-1 rounded-lg">
+          <div className="flex gap-0.5 bg-[#F5F5F5] p-0.5 rounded-lg">
             <button
               onClick={() => setViewMode('grid')}
-              className={`px-4 py-2 rounded-lg font-normal transition-colors ${
+              className={`p-1.5 rounded font-normal transition-all ${
                 viewMode === 'grid'
-                  ? 'bg-[#FFFFFF] text-[#1D1D1F] shadow-sm'
-                  : 'text-[#6E6E73] hover:text-[#1D1D1F]'
+                  ? 'bg-[#FFFFFF] text-[#007AFF] shadow-sm'
+                  : 'text-[#86868B] hover:text-[#1D1D1F]'
               }`}
               title="Visualização em grade"
             >
@@ -222,10 +222,10 @@ export default function ProductsPage() {
             </button>
             <button
               onClick={() => setViewMode('list')}
-              className={`px-4 py-2 rounded-lg font-normal transition-colors ${
+              className={`p-1.5 rounded font-normal transition-all ${
                 viewMode === 'list'
-                  ? 'bg-[#FFFFFF] text-[#1D1D1F] shadow-sm'
-                  : 'text-[#6E6E73] hover:text-[#1D1D1F]'
+                  ? 'bg-[#FFFFFF] text-[#007AFF] shadow-sm'
+                  : 'text-[#86868B] hover:text-[#1D1D1F]'
               }`}
               title="Visualização em lista"
             >

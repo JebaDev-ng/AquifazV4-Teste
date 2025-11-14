@@ -42,17 +42,6 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/auth/login?redirect=/admin', request.url))
     }
 
-    // Verificar se tem permissões administrativas
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile || !['admin', 'editor'].includes(profile.role)) {
-      // Redirecionar para página de acesso negado
-      return NextResponse.redirect(new URL('/auth/unauthorized', request.url))
-    }
   }
 
   return response

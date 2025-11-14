@@ -1,0 +1,9 @@
+- Instalação: `npm install`
+- Desenvolvimento web: `npm run dev`
+- Build produção: `npm run build`
+- Start produção local: `npm run start`
+- Lint: `npm run lint`
+- Supabase migrações: `supabase migrations up` (na pasta `supabase/`)
+- Aplicar seeds/migrações manuais: usar Supabase SQL Editor colando arquivos em `supabase/migrations` ou `supabase/seeds`
+- Git básico (Windows bash): `git status`, `git add <arquivo>`, `git commit -m "mensagem"`, `git push`
+- Navegação em bash.exe: `ls`, `cd <pasta>`, `pwd`

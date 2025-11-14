@@ -228,7 +228,10 @@ async function getProductCategories(useMockData = false): Promise<ProductCategor
       .order('name', { ascending: true })
 
     if (data && data.length > 0) {
-      return data.filter((category) => category.active !== false)
+      const sanitized = data.filter(
+        (category) => category.active !== false && category.id !== 'uncategorized',
+      )
+      return sanitized.length > 0 ? sanitized : DEFAULT_PRODUCT_CATEGORIES
     }
   } catch (error) {
     console.error('Erro ao carregar categorias (fallback):', error)

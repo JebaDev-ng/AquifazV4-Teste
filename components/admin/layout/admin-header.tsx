@@ -114,7 +114,7 @@ export function AdminHeader() {
                 {profile?.full_name || 'Admin'}
               </div>
               <div className="text-[#6E6E73] capitalize">
-                {profile?.role || 'admin'}
+                Administrador
               </div>
             </div>
           </button>

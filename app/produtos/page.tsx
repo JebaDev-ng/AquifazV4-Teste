@@ -65,7 +65,10 @@ async function getCategories(): Promise<ProductCategory[]> {
       throw error
     }
 
-    return (data || []).filter((category) => category.active !== false)
+    const sanitized = (data || []).filter(
+      (category) => category.active !== false && category.id !== 'uncategorized',
+    )
+    return sanitized.length > 0 ? sanitized : DEFAULT_PRODUCT_CATEGORIES
   } catch (error) {
     console.error('Error fetching categories:', error)
     return DEFAULT_PRODUCT_CATEGORIES

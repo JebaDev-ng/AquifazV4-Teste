@@ -1,0 +1,4 @@
+- Projeto AquifazV4: e-commerce/portal administrativo para gráfica baseado em Next.js App Router com área pública e admin.
+- Integração total com Supabase (Auth, Database, Storage, RLS). APIs e server actions seguem padrão: rota em `app/api`, camada de repositório em `lib/admin/**`.
+- Estrutura geral: storefront em `app/**`, admin em `app/admin/**`, componentes compartilhados em `components/**`, utilidades/domínio em `lib/**`, assets e schema em `supabase/**`.
+- Objetivo atual: gerir catálogo (produtos, categorias, seções de homepage) e ferramentas internas (media library) com UX inspirado em LS.Graphics.

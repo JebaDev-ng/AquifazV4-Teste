@@ -1,5 +1,67 @@
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 import type { Profile } from '@/lib/types'
+import type { User } from '@supabase/supabase-js'
+
+const PROFILE_COLUMNS = 'id,email,full_name,avatar_url,created_at,updated_at'
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
+
+async function ensureProfileRecord(
+  supabase: SupabaseServerClient,
+  user: User,
+): Promise<Profile> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select(PROFILE_COLUMNS)
+    .eq('id', user.id)
+    .maybeSingle()
+
+  if (error && error.code !== 'PGRST116') {
+    throw error
+  }
+
+  if (data) {
+    return data as Profile
+  }
+
+  const fallbackName =
+    (typeof user.user_metadata?.full_name === 'string' && user.user_metadata.full_name) ||
+    user.email ||
+    'Administrador'
+
+  const { data: inserted, error: upsertError } = await supabase
+    .from('profiles')
+    .insert({
+      id: user.id,
+      email: user.email ?? '',
+      full_name: fallbackName,
+      avatar_url:
+        (typeof user.user_metadata?.avatar_url === 'string' && user.user_metadata.avatar_url) ||
+        null,
+    })
+    .select(PROFILE_COLUMNS)
+    .single()
+
+  if (upsertError) {
+    throw upsertError
+  }
+
+  return inserted as Profile
+}
+
+async function requireAuthenticatedContext() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    throw new Error('Acesso negado: Login necessário')
+  }
+
+  const profile = await ensureProfileRecord(supabase, user)
+  return { user, profile }
+}
 
 /**
  * Verifica se o usuário atual tem permissões de administrador
@@ -10,16 +72,7 @@ export async function isAdmin(): Promise<boolean> {
     
     const { data: { user } } = await supabase.auth.getUser()
     
-    if (!user) return false
-    
-    // Verificar se o usuário tem role de admin
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-      
-    return profile?.role === 'admin'
+    return Boolean(user)
   } catch (error) {
     console.error('Erro ao verificar permissões de admin:', error)
     return false
@@ -35,15 +88,7 @@ export async function canEdit(): Promise<boolean> {
     
     const { data: { user } } = await supabase.auth.getUser()
     
-    if (!user) return false
-    
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-      
-    return profile?.role === 'admin' || profile?.role === 'editor'
+    return Boolean(user)
   } catch (error) {
     console.error('Erro ao verificar permissões de edição:', error)
     return false
@@ -60,14 +105,8 @@ export async function getCurrentUserProfile(): Promise<Profile | null> {
     const { data: { user } } = await supabase.auth.getUser()
     
     if (!user) return null
-    
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single()
-      
-    return profile
+
+    return await ensureProfileRecord(supabase, user)
   } catch (error) {
     console.error('Erro ao obter perfil do usuário:', error)
     return null
@@ -78,87 +117,35 @@ export async function getCurrentUserProfile(): Promise<Profile | null> {
  * Requer permissões de administrador - retorna usuário se autorizado
  */
 export async function requireAdmin() {
-  const supabase = await createClient()
-  
-  const { data: { user } } = await supabase.auth.getUser()
-  
-  if (!user) {
-    throw new Error('Acesso negado: Login necessário')
-  }
-  
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-    
-  if (!profile || profile.role !== 'admin') {
-    throw new Error('Acesso negado: Permissões de administrador necessárias')
-  }
-  
-  return { user, profile }
+  return requireAuthenticatedContext()
 }
 
 /**
  * Requer permissões de edição - retorna usuário se autorizado
  */
 export async function requireEditor() {
-  const supabase = await createClient()
-  
-  const { data: { user } } = await supabase.auth.getUser()
-  
-  if (!user) {
-    throw new Error('Acesso negado: Login necessário')
-  }
-  
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-    
-  if (!profile || (profile.role !== 'admin' && profile.role !== 'editor')) {
-    throw new Error('Acesso negado: Permissões de edição necessárias')
-  }
-  
-  return { user, profile }
+  return requireAuthenticatedContext()
 }
 
 /**
  * Cria um usuário admin (só pode ser executado por outros admins ou no setup inicial)
  */
 export async function createAdminUser(email: string, password: string, fullName: string): Promise<void> {
-  const supabase = await createClient()
-  
-  // Verificar se já existe um admin (setup inicial)
-  const { count } = await supabase
-    .from('profiles')
-    .select('*', { count: 'exact', head: true })
-    .eq('role', 'admin')
-  
-  // Se já existe admin, verificar se o usuário atual é admin
-  if (count && count > 0) {
-    await requireAdmin()
-  }
-  
-  // Criar usuário no auth
-  const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+  const serviceClient = createServiceClient()
+
+  const { data: authData, error: authError } = await serviceClient.auth.admin.createUser({
     email,
     password,
     user_metadata: { full_name: fullName },
-    email_confirm: true
+    email_confirm: true,
   })
-  
-  if (authError) throw authError
-  
-  // Atualizar perfil para admin
-  if (authData.user) {
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .update({ role: 'admin' })
-      .eq('id', authData.user.id)
-    
-    if (profileError) throw profileError
+
+  if (authError) {
+    throw authError
+  }
+
+  if (!authData.user) {
+    throw new Error('Falha ao criar usuário administrador')
   }
 }
 

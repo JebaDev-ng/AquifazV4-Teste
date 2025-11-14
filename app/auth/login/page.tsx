@@ -35,17 +35,32 @@ export default function LoginPage() {
 
       if (signInError) throw signInError
 
-      // Verificar se o usuário tem permissões adequadas
       const { data: { user } } = await supabase.auth.getUser()
-      
-      const { data: profile, error: profileError } = await supabase
+
+      if (!user) {
+        throw new Error('Não foi possível carregar os dados do usuário autenticado.')
+      }
+
+      const fallbackName =
+        (typeof user.user_metadata?.full_name === 'string' && user.user_metadata.full_name) ||
+        user.email ||
+        'Administrador'
+
+      const { error: profileUpsertError } = await supabase
         .from('profiles')
-        .select('role')
-        .eq('id', user?.id)
+        .upsert({
+          id: user.id,
+          email: user.email ?? '',
+          full_name: fallbackName,
+          avatar_url:
+            (typeof user.user_metadata?.avatar_url === 'string' && user.user_metadata.avatar_url) ||
+            null,
+        })
+        .select('id')
         .single()
 
-      if (profileError || !profile || !['admin', 'editor'].includes(profile.role)) {
-        throw new Error('Você não tem permissões para acessar o painel administrativo.')
+      if (profileUpsertError) {
+        throw new Error('Não foi possível preparar o seu perfil. Tente novamente.')
       }
 
       router.push(redirect)

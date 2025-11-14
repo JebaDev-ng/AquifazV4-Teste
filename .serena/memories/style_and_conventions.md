@@ -1,0 +1,8 @@
+- Sempre responder em português.
+- Next.js 16 com RSC: priorizar componentes server-side; evitar `use client` exceto onde necessário. Componentes devem ser funções nomeadas.
+- Tipagem com TypeScript/Zod; formularios admin usam React Hook Form + schemas compartilhados em `lib/admin/**`.
+- UI: Tailwind + shadcn + Radix; reutilizar componentes existentes (`components/admin/ui`).
+- Mutations via server actions com next-safe-action e schemas Zod; retornos seguem tipo `ActionResponse`.
+- Slugs normalizados pelos helpers existentes; quando ordenar itens usar `saveSectionItemOrder`, não mover `sort_order` manualmente.
+- Commit message prefixes fixos (Feat/Fix/Docs/...).
+- Comentários apenas quando necessário para blocos complexos; manter código legível, early returns e sem magic numbers.
