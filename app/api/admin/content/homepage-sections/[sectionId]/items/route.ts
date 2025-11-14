@@ -31,6 +31,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
     const items = Array.isArray(section.items)
       ? section.items
+          .filter((item): item is Exclude<typeof item, null> => item !== null)
           .map(mapSectionItemRecord)
           .sort(
             (a: HomepageSectionItem, b: HomepageSectionItem) =>
